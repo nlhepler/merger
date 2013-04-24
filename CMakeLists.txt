@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(merger)
 
-set(CMAKE_C_COMPILER "gcc-4.7")
-set(CMAKE_CXX_COMPILER "g++-4.7")
+# set(CMAKE_C_COMPILER "gcc-4.7")
+# set(CMAKE_CXX_COMPILER "g++-4.7")
 # set(CMAKE_EXE_LINKER_FLAGS "-g -pg -Wall")
 set(INSTALL_PREFIX /usr/local CACHE PATH "Installation prefix")
 set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" FORCE)

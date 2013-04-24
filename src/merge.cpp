@@ -316,7 +316,7 @@ next:
 
     nclusters = merge_clusters( args, clusters );
 
-    fprintf( stderr, "\rprocessed: %9d reads (%6lu clusters)", nread, clusters.size() );
+    fprintf( stderr, "\rprocessed: %9d reads (%6lu clusters)\n", nread, clusters.size() );
 
     if ( nclusters < 0 )
         goto error;
