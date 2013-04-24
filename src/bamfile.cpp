@@ -13,8 +13,8 @@ inline
 void calloc_data( bam1_t * const buf )
 {
     kroundup32( buf->m_data );
-    buf->data = reinterpret_cast< uint8_t * >( calloc( buf->m_data, sizeof( uint8_t ) ) ); 
-    
+    buf->data = reinterpret_cast< uint8_t * >( calloc( buf->m_data, sizeof( uint8_t ) ) );
+
     if ( !buf->data ) {
         cerr << "memory allocation failure" << endl;
         exit( 1 );
@@ -74,41 +74,51 @@ bool bamfile_t::next( aligned_t & aln )
 
         aln.len = buf->core.l_qseq;
         aln.lpos = col;
-        aln.data = reinterpret_cast< pos_t * >( malloc( aln.len * sizeof( pos_t ) ) ); 
+        aln.data = reinterpret_cast< pos_t * >( malloc( aln.len * sizeof( pos_t ) ) );
         aln.ncontrib = 1;
 
         if ( !aln.data )
             return false;
-        
+
+        // we'll be incrementing before first use
+        --col;
+
         for ( i = 0; i < buf->core.n_cigar; ++i ) {
             const int op = cigar[ i ] & BAM_CIGAR_MASK;
             const int nop = cigar[ i ] >> BAM_CIGAR_SHIFT;
-           
-            // if we're a data-bearing op, add it to the alignment data
-            if ( op == BAM_CMATCH || op == BAM_CINS || op == BAM_CEQUAL || op == BAM_CDIFF ) {
-                for ( j = 0; j < nop; ++j, ++idx ) {
-                    aln.data[ idx ].col = ( op == BAM_CINS ) ? col : col++;
-                    aln.data[ idx ].ins = ( op == BAM_CINS ) ? ins++ : 0;
-                    aln.data[ idx ].cov = 1;
-                    aln.data[ idx ].nuc = bam1_seqi( bam1_seq( buf ), idx );
-                }
-                // if we're not an insertion, set ins to 0
-                if ( op != BAM_CINS )
+
+            rpos += nop;
+
+            for ( j = 0; j < nop; ++j ) {
+                if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
+                    col += 1;
                     ins = 0;
-                rpos += nop; 
-            }
-            else if ( op == BAM_CDEL ) {
-                col += nop;
-                ins = 0;
-                rpos += nop;
+                }
+                else if ( op == BAM_CINS )
+                    ins += 1;
+                else if ( op == BAM_CDEL ) {
+                    col += 1;
+                    ins = 0;
+                    continue;
+                }
+
+                aln.data[ idx ].col = col;
+                aln.data[ idx ].ins = ins;
+                aln.data[ idx ].cov = 1;
+                aln.data[ idx ].nuc = bam1_seqi( bam1_seq( buf ), idx );
+
+                ++idx;
             }
         }
 
         aln.rpos = rpos;
 
+        bam_destroy1( buf );
+        buf = bam_init1();
+
         return true;
     }
-    
+
     return false;
 }
 
@@ -134,6 +144,7 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
 
     buf->core.tid = 0;
     buf->core.pos = aln.lpos;
+    buf->core.qual = 0xFF;
     buf->core.l_qname = 1 + strlen( qname );
     buf->m_data = buf->core.l_qname + 2*aln.len;
     buf->core.l_qseq = aln.len;
@@ -144,27 +155,31 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
 
     calloc_data( buf );
 
+    strncpy( reinterpret_cast< char * >( buf->data ), qname, buf->core.l_qname );
+
     for ( i = 1, j = 0; i < aln.len; ++i ) {
         const int col = aln.data[ i ].col;
-        
-        if ( col == next_col - 1 && aln.data[ i ].ins && op != BAM_CINS ) {
-            bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
-            op = BAM_CINS;
-            nop = 0;
-        }
-        else if ( col != next_col ) {
-            bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
-            op = BAM_CDEL;
-            nop = 0;
-        }
-        else if ( op != BAM_CMATCH ) {
-            bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
-            op = BAM_CMATCH;
-            nop = 0;
+        const int op_ = aln.data[ i ].ins ? BAM_CINS : BAM_CMATCH;
+
+        if ( col > next_col ) {
+            if ( op == BAM_CDEL )
+                nop += col - next_col;
+            else {
+                bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
+                nop = col - next_col;
+                op = BAM_CDEL;
+            }
         }
 
         next_col = col + 1;
-        ++nop;
+
+        if ( op_ == op )
+            nop += 1;
+        else {
+            bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
+            nop = 1;
+            op = op_;
+        }
 
         if ( reinterpret_cast< uint8_t * >( bam1_cigar( buf ) + j ) >=
                 buf->data + buf->m_data ) {
@@ -176,7 +191,7 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
     bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
 
     buf->core.n_cigar = j;
-   
+
     // qname-cigar-seq-qual-aux
     buf->l_aux = 0;
     buf->data_len = (
@@ -186,7 +201,7 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
         buf->core.l_qseq
         );
     buf->m_data = buf->data_len;
-    realloc_data( buf ); 
+    realloc_data( buf );
 
     for ( i = 0; i < aln.len; ++i ) {
         bam1_seq_seti( bam1_seq( buf ), i, aln.data[ i ].nuc );
@@ -196,7 +211,7 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
     bam1_qual( buf )[ 0 ] = 0xFF;
     buf->core.bin = bam_reg2bin( buf->core.pos, bam_calend( &buf->core, bam1_cigar( buf ) ) );
 
-    if ( bam_validate1( NULL, buf ) ) {
+    if ( !bam_validate1( NULL, buf ) ) {
         cerr << "record failed validation" << endl;
         exit( 1 );
     }

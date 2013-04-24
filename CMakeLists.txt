@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(merger)
 
-# set(CMAKE_CXX_COMPILER "g++")
+set(CMAKE_C_COMPILER "gcc-4.7")
+set(CMAKE_CXX_COMPILER "g++-4.7")
 # set(CMAKE_EXE_LINKER_FLAGS "-g -pg -Wall")
 set(INSTALL_PREFIX /usr/local CACHE PATH "Installation prefix")
 set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" FORCE)
@@ -40,7 +41,7 @@ add_library(
 set_target_properties(
     bam
     PROPERTIES
-    COMPILE_FLAGS "-O2 -Wall -Werror"
+    COMPILE_FLAGS "-O3 -Wall"
     )
 
 set_property(
@@ -58,13 +59,14 @@ add_executable(
     src/bamfile.cpp
     )
 
-target_link_libraries(merger bam m z)
+target_link_libraries(merger bam pthread m z)
 
 # do not remove -Wall and -Werror: please fix the errors instead of being lazy
 set_target_properties(
     merger
     PROPERTIES
     COMPILE_FLAGS "-O3 -Wall -Werror"
+    LINK_FLAGS "-O3 -Wall -Werror"
     # COMPILE_FLAGS "-O3 -g -pg -Wall -Werror"
     )
 

@@ -14,7 +14,7 @@ int main( int argc, const char * argv[] )
 {
     args_t args = args_t( argc, argv );
     vector< aligned_t > clusters;
-    int i;
+    size_t i;
 
     merge( args, clusters );
 
@@ -23,7 +23,7 @@ int main( int argc, const char * argv[] )
     for ( i = 0; i < clusters.size(); ++i ) {
         if ( clusters[ i ].ncontrib >= args.min_reads ) {
             char qname[ 256 ];
-            snprintf( qname, 256, "cluster%d_%dr", i, clusters[ i ].ncontrib );
+            snprintf( qname, 256, "cluster%lu_%dr", i, clusters[ i ].ncontrib );
             args.bamout->write( qname, clusters[ i ] );
         }
     }

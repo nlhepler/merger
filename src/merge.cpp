@@ -12,9 +12,6 @@ using std::cerr;
 using std::endl;
 
 
-#define DEBUG
-
-
 #define MERGE_SIZE 128
 
 #define MAX( a, b ) (((a) > (b)) ? (a) : (b))
@@ -88,7 +85,17 @@ bool ncontrib_cmp( const aligned_t & x, const aligned_t & y )
 }
 
 
-inline
+bool aln_cmp( const aligned_t & x, const aligned_t & y )
+{
+    if ( x.lpos < y.lpos )
+        return true;
+    else if ( y.lpos < x.lpos )
+        return false;
+    else if ( x.len >= y.len )
+        return true;
+    return false;
+}
+
 void cerr_triple( const pos_t & x, bool end=true )
 {
     cerr << x.col << " " << x.ins << " " << bits2nuc( x.nuc );
@@ -129,7 +136,7 @@ res_t merge_two(
         ABORT( "insufficient length" )
 
     // if there is absolutely no hope to reach min_overlap, skip
-    if ( false && xs.rpos < ys.lpos + args.min_overlap &&
+    if ( xs.rpos < ys.lpos + args.min_overlap &&
             ys.rpos < xs.lpos + args.min_overlap )
         ABORT( "no opportunity for sufficient overlap" )
 
@@ -245,21 +252,17 @@ int merge_clusters(
 {
     vector< aligned_t >::iterator a, b;
     int nclusters;
-    aligned_t merged;
-    res_t res = FAILURE;
 
-    cerr << endl;
 begin:
-    fprintf( stderr, "\rmerging:   %9lu clusters", clusters.size() );
-
     sort( clusters.begin(), clusters.end(), ncontrib_cmp );
 
     for ( nclusters = 0, a = clusters.begin(); a != clusters.end(); ++a ) {
         for ( b = a + 1; b != clusters.end(); ++b ) {
-            res = merge_two( *a, *b, args, merged );
+            aligned_t merged = { .data = NULL };
+            res_t res = merge_two( *a, *b, args, merged );
             if ( res == SUCCESS ) {
                 aligned_destroy( *a );
-                aligned_destroy( *b ); 
+                aligned_destroy( *b );
                 // replace i and remove j
                 *a = merged;
                 clusters.erase( b );
@@ -271,8 +274,6 @@ begin:
         if ( a->ncontrib >= args.min_reads )
             ++nclusters;
     }
-
-    cerr << endl;
 
     return nclusters;
 }
@@ -286,41 +287,41 @@ int merge(
     size_t merge_size = MERGE_SIZE;
     int nclusters, nread = 0;
     aligned_t read = { .data = NULL };
-    aligned_t merged = { .data = NULL };
-    res_t res;
 
     while ( args.bamin->next( read ) ) {
+        if ( nread % 100 == 0 )
+            fprintf( stderr, "\rprocessed: %9i reads (%6lu clusters)", nread, clusters.size() );
         for ( cluster = clusters.begin(); cluster != clusters.end(); ++cluster ) {
-            if ( nread % 100 == 0 ) {
-                fprintf( stderr, "\rprocessed: %9i reads", nread );
-            }
-            res = merge_two( read, *cluster, args, merged );
+            aligned_t merged = { .data = NULL };
+            res_t res = merge_two( read, *cluster, args, merged );
             if ( res == SUCCESS ) {
                 // destroy our read and cluster
                 aligned_destroy( read );
                 aligned_destroy( *cluster );
                 *cluster = merged;
                 if ( clusters.size() > merge_size ) {
-                    fprintf( stderr, "\rprocessed: %9i reads", nread );
                     if ( merge_clusters( args, clusters ) < 0 )
                         goto error;
                     merge_size *= 2;
                 }
-                continue;
+                goto next;
             }
             else if ( res == ERROR )
                 goto error;
         }
         clusters.push_back( read );
+next:
         ++nread;
     }
 
-    fprintf( stderr, "\rprocessed: %9d reads", nread );
-
     nclusters = merge_clusters( args, clusters );
+
+    fprintf( stderr, "\rprocessed: %9d reads (%6lu clusters)", nread, clusters.size() );
 
     if ( nclusters < 0 )
         goto error;
+
+    sort( clusters.begin(), clusters.end(), aln_cmp );
 
     return nclusters;
 
