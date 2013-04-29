@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "argparse.hpp"
+#include "args.hpp"
 
 // some crazy shit for stringifying preprocessor directives
 #define STRIFY(x) #x
@@ -13,6 +13,7 @@
 
 const char usage[] =
     "usage: " EXEC " [-h] "
+    "[-D BAM_DISCARD] "
     "[-o MIN_OVERLAP] "
     "[-r MIN_READS] "
     "[-g] [-a] "
@@ -25,6 +26,7 @@ const char help_msg[] =
     "  -B BAM_IN BAM_OUT        BAM input and output files, respectively\n"
     "\n"
     "optional arguments:\n"
+    "  -D BAM_DISCARD           BAM output for discarded clusters and reads\n"
     "  -h, --help               show this help message and exit\n"
     "  -o MIN_OVERLAP           minimum overlap between two reads to merge them (default="
                                 TO_STR( DEFAULT_MIN_OVERLAP ) ")\n"
@@ -51,6 +53,7 @@ void help()
 args_t::args_t( int argc, const char * argv[] ) :
     bamin( NULL ),
     bamout( NULL ),
+    bamdiscard( NULL ),
     min_overlap( DEFAULT_MIN_OVERLAP ),
     min_reads( DEFAULT_MIN_READS ),
     tol_gaps( DEFAULT_TOL_GAPS ),
@@ -79,6 +82,7 @@ args_t::args_t( int argc, const char * argv[] ) :
                 parse_bamfile( argv[i+1], argv[i+2] );
                 i += 2;
             }
+            else if ( !strcmp( &arg[1], "D" ) ) parse_bamdiscard( argv[++i] );
             else if ( !strcmp( &arg[1], "o" ) ) parse_minoverlap( argv[++i] );
             else if ( !strcmp( &arg[1], "r" ) ) parse_minreads( argv[++i] );
             else if ( !strcmp( &arg[1], "g" ) ) parse_tolgaps();
@@ -98,12 +102,18 @@ args_t::~args_t()
 {
     delete bamin;
     delete bamout;
+    delete bamdiscard;
 }
 
 void args_t::parse_bamfile( const char * input, const char * output )
 {
     bamin = new bamfile_t( input, READ );
     bamout = new bamfile_t( output, WRITE );
+}
+
+void args_t::parse_bamdiscard( const char * discard )
+{
+    bamdiscard = new bamfile_t( discard, WRITE );
 }
 
 void args_t::parse_minoverlap( const char * str )

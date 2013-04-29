@@ -3,13 +3,14 @@
 #include <algorithm>
 #include <iostream>
 
-#include "argparse.hpp"
+#include "args.hpp"
 #include "bamfile.hpp"
 #include "merge.hpp"
 
 using std::sort;
 using std::cerr;
 using std::endl;
+using std::vector;
 
 
 #define MERGE_SIZE 128
@@ -18,7 +19,6 @@ using std::endl;
 #define MIN( a, b ) (((a) < (b)) ? (a) : (b))
 
 enum cmp_t { LT, GT, EQ };
-enum res_t { SUCCESS, FAILURE, ERROR };
 
 
 char nuc2bits( const char nuc )
@@ -84,17 +84,6 @@ bool ncontrib_cmp( const aligned_t & x, const aligned_t & y )
     return x.ncontrib > y.ncontrib;
 }
 
-
-bool aln_cmp( const aligned_t & x, const aligned_t & y )
-{
-    if ( x.lpos < y.lpos )
-        return true;
-    else if ( y.lpos < x.lpos )
-        return false;
-    else if ( x.len >= y.len )
-        return true;
-    return false;
-}
 
 void cerr_triple( const pos_t & x, bool end=true )
 {
@@ -246,92 +235,44 @@ res_t merge_two(
 }
 
 int merge_clusters(
+    const int nread,
     const args_t & args,
     vector< aligned_t > & clusters
     )
 {
     vector< aligned_t >::iterator a, b;
     int nclusters;
+    bool repeat;
 
+    do {
+        repeat = false;
+
+        sort( clusters.begin(), clusters.end(), ncontrib_cmp );
+
+        for ( nclusters = 0, a = clusters.begin(); a != clusters.end(); ++a ) {
 begin:
-    sort( clusters.begin(), clusters.end(), ncontrib_cmp );
-
-    for ( nclusters = 0, a = clusters.begin(); a != clusters.end(); ++a ) {
-        for ( b = a + 1; b != clusters.end(); ++b ) {
-            aligned_t merged = { .data = NULL };
-            res_t res = merge_two( *a, *b, args, merged );
-            if ( res == SUCCESS ) {
-                aligned_destroy( *a );
-                aligned_destroy( *b );
-                // replace i and remove j
-                *a = merged;
-                clusters.erase( b );
-                goto begin;
-            }
-            else if ( res == ERROR )
-                return -1;
-        }
-        if ( a->ncontrib >= args.min_reads )
-            ++nclusters;
-    }
-
-    return nclusters;
-}
-
-int merge(
-    args_t & args,
-    vector< aligned_t > & clusters
-    )
-{
-    vector< aligned_t >::iterator cluster;
-    size_t merge_size = MERGE_SIZE;
-    int nclusters, nread = 0;
-    aligned_t read = { .data = NULL };
-
-    while ( args.bamin->next( read ) ) {
-        if ( nread % 100 == 0 )
-            fprintf( stderr, "\rprocessed: %9i reads (%6lu clusters)", nread, clusters.size() );
-        for ( cluster = clusters.begin(); cluster != clusters.end(); ++cluster ) {
-            aligned_t merged = { .data = NULL };
-            res_t res = merge_two( read, *cluster, args, merged );
-            if ( res == SUCCESS ) {
-                // destroy our read and cluster
-                aligned_destroy( read );
-                aligned_destroy( *cluster );
-                *cluster = merged;
-                if ( clusters.size() > merge_size ) {
-                    if ( merge_clusters( args, clusters ) < 0 )
-                        goto error;
-                    merge_size *= 2;
+            for ( b = a + 1; b != clusters.end(); ++b ) {
+                aligned_t merged = { .data = NULL };
+                res_t res = merge_two( *a, *b, args, merged );
+                if ( res == SUCCESS ) {
+                    aligned_destroy( *a );
+                    aligned_destroy( *b );
+                    // replace i and remove j
+                    *a = merged;
+                    clusters.erase( b );
+                    fprintf( stderr, "\rprocessed: %9i reads (%6lu clusters)", nread, clusters.size() );
+                    repeat = true;
+                    goto begin;
                 }
-                goto next;
+                else if ( res == ERROR )
+                    return -1;
             }
-            else if ( res == ERROR )
-                goto error;
+            if ( a->ncontrib >= args.min_reads )
+                ++nclusters;
         }
-        clusters.push_back( read );
-next:
-        ++nread;
-    }
-
-    nclusters = merge_clusters( args, clusters );
-
-    fprintf( stderr, "\rprocessed: %9d reads (%6lu clusters)\n", nread, clusters.size() );
-
-    if ( nclusters < 0 )
-        goto error;
-
-    sort( clusters.begin(), clusters.end(), aln_cmp );
+    } while ( repeat );
 
     return nclusters;
-
-error:
-    aligned_destroy( read );
-
-    for ( cluster = clusters.begin(); cluster != clusters.end(); ++cluster )
-        aligned_destroy( *cluster );
-
-    return -1;
 }
 
 void aligned_destroy( aligned_t & read )

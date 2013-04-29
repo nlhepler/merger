@@ -1,25 +1,28 @@
 
 #include <vector>
 
-#include "argparse.hpp"
+#include "args.hpp"
 #include "aligned.h"
 
-using std::vector;
-
-typedef struct {
-    int min_overlap;
-    int min_reads;
-    int tol_gaps;
-    int tol_ambigs;
-} opts_t;
+enum res_t { SUCCESS, FAILURE, ERROR };
 
 char nuc2bits( const char nuc );
 
 char bits2nuc( const char bits );
 
-int merge(
-    args_t & args,
-    vector< aligned_t > & clusters
+bool ncontrib_cmp( const aligned_t & x, const aligned_t & y );
+
+res_t merge_two(
+    const aligned_t & xs,
+    const aligned_t & ys,
+    const args_t & args,
+    aligned_t & merged
+    );
+
+int merge_clusters(
+    const int nread,
+    const args_t & args,
+    std::vector< aligned_t > & clusters
     );
 
 void aligned_destroy( aligned_t & read );

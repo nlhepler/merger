@@ -1,3 +1,3 @@
-[submodule "samtools"]
-	path = samtools
+[submodule "external/samtools"]
+	path = external/samtools
 	url = git://github.com/samtools/samtools.git

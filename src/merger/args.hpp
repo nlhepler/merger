@@ -18,6 +18,7 @@ class args_t
 public:
     bamfile_t * bamin;
     bamfile_t * bamout;
+    bamfile_t * bamdiscard;
     int min_overlap;
     int min_reads;
     bool tol_gaps;
@@ -27,6 +28,7 @@ public:
     ~args_t();
 private:
     void parse_bamfile( const char *, const char * );
+    void parse_bamdiscard( const char * );
     void parse_minoverlap( const char * );
     void parse_minreads( const char * );
     void parse_tolgaps();

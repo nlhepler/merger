@@ -7,54 +7,47 @@ project(merger)
 set(INSTALL_PREFIX /usr/local CACHE PATH "Installation prefix")
 set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" FORCE)
 
-set(CMAKE_CONFIGURATION_TYPES Release)
+set(CMAKE_BUILD_TYPE DEBUG)
 
-include_directories(
-    src/
-    samtools/
-    )
+set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g -Wall")
+set(CMAKE_C_FLAGS_DEBUG "-O1 -g -Wall")
+
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall")
 
 add_library(
     bam
     STATIC
-	samtools/bgzf.c
-    samtools/kstring.c
-    samtools/bam_aux.c
-    samtools/bam.c
-    samtools/bam_import.c
-    samtools/sam.c
-    samtools/bam_index.c
-    samtools/bam_pileup.c
-    samtools/bam_lpileup.c
-    samtools/bam_md.c
-    samtools/razf.c
-    samtools/faidx.c
-    samtools/bedidx.c
-    samtools/knetfile.c
-    samtools/bam_sort.c
-    samtools/sam_header.c
-    samtools/bam_reheader.c
-    samtools/kprobaln.c
-    samtools/bam_cat.c
-    )
-
-set_target_properties(
-    bam
-    PROPERTIES
-    COMPILE_FLAGS "-O3 -Wall"
+	external/samtools/bgzf.c
+    external/samtools/kstring.c
+    external/samtools/bam_aux.c
+    external/samtools/bam.c
+    external/samtools/bam_import.c
+    external/samtools/sam.c
+    external/samtools/bam_index.c
+    external/samtools/bam_pileup.c
+    external/samtools/bam_lpileup.c
+    external/samtools/bam_md.c
+    external/samtools/razf.c
+    external/samtools/faidx.c
+    external/samtools/bedidx.c
+    external/samtools/knetfile.c
+    external/samtools/bam_sort.c
+    external/samtools/sam_header.c
+    external/samtools/bam_reheader.c
+    external/samtools/kprobaln.c
+    external/samtools/bam_cat.c
     )
 
 set_property(
-    TARGET
-    bam
-    PROPERTY 
-    COMPILE_DEFINITIONS _FILE_OFFSET_BITS=64 _LARGEFILE64_SOURCE _USE_KNETFILE _CURSES_LIB=1 
+    TARGET bam
+    PROPERTY COMPILE_DEFINITIONS _FILE_OFFSET_BITS=64 _LARGEFILE64_SOURCE _USE_KNETFILE _CURSES_LIB=1 
     )
 
 add_executable(
     merger
-    src/main.cpp
-    src/argparse.cpp
+    src/merger/main.cpp
+    src/merger/args.cpp
     src/merge.cpp
     src/bamfile.cpp
     )
@@ -62,31 +55,33 @@ add_executable(
 target_link_libraries(merger bam pthread m z)
 
 # do not remove -Wall and -Werror: please fix the errors instead of being lazy
-set_target_properties(
-    merger
-    PROPERTIES
-    COMPILE_FLAGS "-O3 -Wall -Werror"
-    LINK_FLAGS "-O3 -Wall -Werror"
-    # COMPILE_FLAGS "-O3 -g -pg -Wall -Werror"
+set_property(
+    TARGET merger
+    APPEND PROPERTY INCLUDE_DIRECTORIES src/merger
     )
 
+add_executable(
+    sampler
+    src/sampler/main.cpp
+    src/sampler/args.cpp
+    src/merge.cpp
+    src/bamfile.cpp
+    )
+
+target_link_libraries(sampler bam pthread m z)
+
+set_property(
+    TARGET sampler
+    APPEND PROPERTY INCLUDE_DIRECTORIES src/sampler
+    )
+
+set_property(
+    TARGET merger sampler
+    APPEND PROPERTY INCLUDE_DIRECTORIES external/samtools src
+    )
 
 install(
-    TARGETS merger
+    TARGETS merger sampler
 	RUNTIME DESTINATION bin
 	OPTIONAL
     )
-
-find_program(
-    ASTYLE
-    astyle
-    PATHS ENV PATH
-    )
-
-if(ASTYLE)
-    add_custom_target(
-        style
-        COMMAND ${ASTYLE} --options=astyle.txt --suffix=none --recursive 'src/*.cpp' 'src/*.hpp' 'src/*.tpp'
-        DEPENDS astyle.txt
-        )
-endif(ASTYLE)

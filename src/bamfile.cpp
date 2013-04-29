@@ -1,12 +1,25 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 
 #include "merge.hpp"
 #include "bamfile.hpp"
 
 using std::cerr;
 using std::endl;
+using std::vector;
+
+
+#define likely( x ) __builtin_expect( ( x ), 1 )
+#define unlikely( x ) __builtin_expect( ( x ), 0 )
+
+
+inline
+uint32_t cigval( int op, int nop )
+{
+    return ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
+}
 
 
 inline
@@ -38,10 +51,14 @@ void realloc_data( bam1_t * const buf )
 bamfile_t::bamfile_t( const char * path, bam_mode_t mode ) :
     fp( NULL ),
     buf( NULL ),
+    idx( NULL ),
     hdr( NULL )
 {
-    if ( strcmp( path, "-" ) )
+    if ( strcmp( path, "-" ) ) {
         fp = bam_open( path, ( mode == READ ) ? "r" : "w" );
+        if ( mode == READ )
+            idx = bam_index_load( path );
+    }
     else if ( mode == READ )
         fp = bam_dopen( fileno( stdin ), "r" );
     else
@@ -63,60 +80,94 @@ bamfile_t::~bamfile_t()
         bam_close( fp );
 }
 
+inline
+bool bam2aln( const bam1_t * const buf, aligned_t & aln )
+{
+    const uint32_t * cigar = bam1_cigar( buf );
+    int i, j, col = buf->core.pos, rpos = col, idx = 0, ins = 0;
+
+    aln.len = buf->core.l_qseq;
+    aln.lpos = col;
+    aln.data = reinterpret_cast< pos_t * >( malloc( aln.len * sizeof( pos_t ) ) );
+    aln.ncontrib = 1;
+
+    if ( !aln.data )
+        return false;
+
+    // we'll be incrementing before first use
+    --col;
+
+    for ( i = 0; i < buf->core.n_cigar; ++i ) {
+        const int op = cigar[ i ] & BAM_CIGAR_MASK;
+        const int nop = cigar[ i ] >> BAM_CIGAR_SHIFT;
+
+        rpos += nop;
+
+        if ( op == BAM_CDEL ) {
+            col += nop;
+            ins = 0;
+            continue;
+        }
+
+        for ( j = 0; j < nop; ++j ) {
+            if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
+                ++col;
+                ins = 0;
+            }
+            else if ( op == BAM_CINS )
+                ++ins;
+
+            aln.data[ idx ].col = col;
+            aln.data[ idx ].ins = ins;
+            aln.data[ idx ].cov = 1;
+            aln.data[ idx ].nuc = bam1_seqi( bam1_seq( buf ), idx );
+
+            ++idx;
+        }
+    }
+
+    aln.rpos = rpos;
+
+    /* this is probably not strictly necessary
+    bam_destroy1( buf );
+    buf = bam_init1();
+    */
+
+    return true;
+}
+
+typedef struct {
+    vector< aligned_t > & reads;
+} fetch_t;
+
+static int fetch_func( const bam1_t * b, void * data )
+{
+    aligned_t read;
+    if ( bam2aln( b, read ) ) {
+        reinterpret_cast< fetch_t * >( data )->reads.push_back( read );
+    }
+    return 0;
+}
+
+void bamfile_t::fetch( vector< aligned_t > & reads, int begin, int end, int tid )
+{
+    fetch_t data = { .reads = reads };
+
+    if ( !idx ) {
+        cerr << "BAM index not found" << endl;
+        exit( 1 );
+    }
+
+    bam_fetch( fp, idx, tid, begin, end, reinterpret_cast< void * >( &data ), fetch_func );
+}
+
 bool bamfile_t::next( aligned_t & aln )
 {
     if ( fp->is_write )
         return false;
 
     if ( bam_read1( fp, buf ) >= 0 ) {
-        const uint32_t * cigar = bam1_cigar( buf );
-        int i, j, col = buf->core.pos, rpos = col, idx = 0, ins = 0;
-
-        aln.len = buf->core.l_qseq;
-        aln.lpos = col;
-        aln.data = reinterpret_cast< pos_t * >( malloc( aln.len * sizeof( pos_t ) ) );
-        aln.ncontrib = 1;
-
-        if ( !aln.data )
-            return false;
-
-        // we'll be incrementing before first use
-        --col;
-
-        for ( i = 0; i < buf->core.n_cigar; ++i ) {
-            const int op = cigar[ i ] & BAM_CIGAR_MASK;
-            const int nop = cigar[ i ] >> BAM_CIGAR_SHIFT;
-
-            rpos += nop;
-
-            for ( j = 0; j < nop; ++j ) {
-                if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
-                    col += 1;
-                    ins = 0;
-                }
-                else if ( op == BAM_CINS )
-                    ins += 1;
-                else if ( op == BAM_CDEL ) {
-                    col += 1;
-                    ins = 0;
-                    continue;
-                }
-
-                aln.data[ idx ].col = col;
-                aln.data[ idx ].ins = ins;
-                aln.data[ idx ].cov = 1;
-                aln.data[ idx ].nuc = bam1_seqi( bam1_seq( buf ), idx );
-
-                ++idx;
-            }
-        }
-
-        aln.rpos = rpos;
-
-        bam_destroy1( buf );
-        buf = bam_init1();
-
-        return true;
+        return bam2aln( buf, aln );
     }
 
     return false;
@@ -132,14 +183,23 @@ bool bamfile_t::write_header( const bam_header_t * hdr_ )
     return true;
 }
 
-bool bamfile_t::write( const char * const qname, aligned_t & aln )
+bool bamfile_t::write(
+    const char * const qname,
+    aligned_t & aln,
+    const int begin,
+    const int end
+    )
 {
     if ( !fp->is_write || !aln.len )
         return false;
 
-    int i, j = 0;
-    int next_col = aln.data[ 0 ].col + 1;
-    int op = aln.data[ 0 ].ins ? BAM_CINS : BAM_CMATCH;
+    int i = 0, j = 0;
+
+    for( ; aln.data[ i ].col < begin && i < aln.len; ++i );
+
+    const int beg_idx = i;
+    int next_col = aln.data[ i ].col + 1;
+    int op = aln.data[ i ].ins ? BAM_CINS : BAM_CMATCH;
     int nop = 1;
 
     buf->core.tid = 0;
@@ -147,7 +207,6 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
     buf->core.qual = 0xFF;
     buf->core.l_qname = 1 + strlen( qname );
     buf->m_data = buf->core.l_qname + 2*aln.len;
-    buf->core.l_qseq = aln.len;
     // there are no mates
     buf->core.mtid = -1;
     buf->core.mpos = -1;
@@ -157,29 +216,32 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
 
     strncpy( reinterpret_cast< char * >( buf->data ), qname, buf->core.l_qname );
 
-    for ( i = 1, j = 0; i < aln.len; ++i ) {
+    for ( ++i, j = 0; i < aln.len; ++i ) {
         const int col = aln.data[ i ].col;
         const int op_ = aln.data[ i ].ins ? BAM_CINS : BAM_CMATCH;
 
+        if ( end && col > end )
+            break;
+
         if ( col > next_col ) {
-            if ( op == BAM_CDEL )
+            if ( unlikely( op == BAM_CDEL ) )
                 nop += col - next_col;
             else {
-                bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
+                bam1_cigar( buf )[ j++ ] = cigval( op, nop );
                 nop = col - next_col;
                 op = BAM_CDEL;
             }
         }
 
-        next_col = col + 1;
-
         if ( op_ == op )
-            nop += 1;
+            ++nop;
         else {
-            bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
+            bam1_cigar( buf )[ j++ ] = cigval( op, nop );
             nop = 1;
             op = op_;
         }
+
+        next_col = col + 1;
 
         if ( reinterpret_cast< uint8_t * >( bam1_cigar( buf ) + j ) >=
                 buf->data + buf->m_data ) {
@@ -188,8 +250,9 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
         }
     }
 
-    bam1_cigar( buf )[ j++ ] = ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
-
+    const int end_idx = i;
+    buf->core.l_qseq = end - beg_idx; 
+    bam1_cigar( buf )[ j++ ] = cigval( op, nop );
     buf->core.n_cigar = j;
 
     // qname-cigar-seq-qual-aux
@@ -203,7 +266,7 @@ bool bamfile_t::write( const char * const qname, aligned_t & aln )
     buf->m_data = buf->data_len;
     realloc_data( buf );
 
-    for ( i = 0; i < aln.len; ++i ) {
+    for ( i = beg_idx; i < end_idx; ++i ) {
         bam1_seq_seti( bam1_seq( buf ), i, aln.data[ i ].nuc );
     }
 
