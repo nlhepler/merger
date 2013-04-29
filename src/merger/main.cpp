@@ -34,14 +34,14 @@ int merge(
 {
     vector< aligned_t > discard;
     vector< aligned_t >::iterator cluster;
-    size_t merge_size = MERGE_SIZE;
-    int nclusters, nread = 0;
+    size_t merge_size = MERGE_SIZE, nread = 0;
+    int nclusters;
     aligned_t read = { .data = NULL };
 
     while ( args.bamin->next( read ) ) {
 
         if ( nread % 100 == 0 )
-            fprintf( stderr, "\rprocessed: %9i reads (%6lu clusters)", nread, clusters.size() );
+            fprintf( stderr, "\rprocessed: %9lu reads (%6lu clusters)", nread, clusters.size() );
 
         /*
         if ( nread % 1000 == 0 )
@@ -51,6 +51,9 @@ int merge(
         if ( read.len < args.min_overlap ) {
             if ( args.bamdiscard )
                 discard.push_back( read );
+            else
+                aligned_destroy( read );
+
             goto next;
         }
 
@@ -81,7 +84,7 @@ next:
 
     nclusters = merge_clusters( nread, args, clusters );
 
-    fprintf( stderr, "\rprocessed: %9d reads (%6lu clusters)\n", nread, clusters.size() );
+    fprintf( stderr, "\rprocessed: %9lu reads (%6lu clusters)\n", nread, clusters.size() );
 
     if ( nclusters < 0 )
         goto error;
@@ -131,6 +134,7 @@ int main( int argc, const char * argv[] )
             snprintf( qname, 256, "cluster%lu_%dr", j++, cluster->ncontrib );
             args.bamdiscard->write( qname, *cluster );
         }
+        aligned_destroy( *cluster );
     }
 
     return 0;

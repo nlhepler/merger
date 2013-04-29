@@ -15,6 +15,7 @@ const char usage[] =
     "usage: " EXEC " [-h] "
     "[-b BEGIN] "
     "[-e END] "
+    "[-r MIN_READS] "
     "[-s STRIDE] "
     "[-w WINDOW_SIZE] "
     "(-B BAM_IN BAM_OUT)\n";
@@ -29,6 +30,8 @@ const char help_msg[] =
     "  -h, --help               show this help message and exit\n"
     "  -b BEGIN                 begin at position BEGIN in reference\n"
     "  -e END                   end at position END in reference\n"
+    "  -r MIN_READS             minimum number of contributing reads to report a sample (default="
+                                TO_STR( DEFAULT_MIN_READS ) ")\n"
     "  -s STRIDE                walk by STRIDE positions at a time (default="
                                 TO_STR( DEFAULT_STRIDE ) ")\n"                
     "  -w WINDOW_SIZE           use windows of size WINDOW_SIZE (default="
@@ -86,6 +89,7 @@ args_t::args_t( int argc, const char * argv[] ) :
             }
             else if ( !strcmp( &arg[1], "b" ) ) parse_begin( argv[ ++i ] );
             else if ( !strcmp( &arg[1], "e" ) ) parse_end( argv[ ++i ] );
+            else if ( !strcmp( &arg[1], "r" ) ) parse_minreads( argv[++i] );
             else if ( !strcmp( &arg[1], "s" ) ) parse_stride( argv[ ++i ] );
             else if ( !strcmp( &arg[1], "w" ) ) parse_windowsize( argv[ ++i ] );
             else
@@ -116,6 +120,14 @@ void args_t::parse_bamfile( const char * input, const char * output )
 {
     bamin = new bamfile_t( input, READ );
     bamout = new bamfile_t( output, WRITE );
+}
+
+void args_t::parse_minreads( const char * str )
+{
+    min_reads = atoi( str );
+
+    if ( min_reads < 1 )
+        ERROR( "minimum reads must be an integer greater than 0, had: %s", str );
 }
 
 void args_t::parse_begin( const char * str )

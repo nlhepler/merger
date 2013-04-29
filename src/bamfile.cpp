@@ -35,16 +35,17 @@ void calloc_data( bam1_t * const buf )
 }
 
 
-inline
 void realloc_data( bam1_t * const buf )
 {
     kroundup32( buf->m_data );
-    buf->data = reinterpret_cast< uint8_t * >( realloc( buf->data, buf->m_data * sizeof( uint8_t ) ) );
+    uint8_t * data = reinterpret_cast< uint8_t * >( realloc( buf->data, buf->m_data * sizeof( uint8_t ) ) );
 
-    if ( !buf->data ) {
+    if ( !data ) {
         cerr << "memory allocation error" << endl;
         exit( 1 );
     }
+
+    buf->data = data;
 }
 
 
@@ -76,18 +77,18 @@ bamfile_t::~bamfile_t()
         bam_destroy1( buf );
     if ( hdr != NULL )
         bam_header_destroy( hdr );
+    if ( idx != NULL )
+        bam_index_destroy( idx );
     if ( fp != NULL )
         bam_close( fp );
 }
 
-inline
-bool bam2aln( const bam1_t * const buf, aligned_t & aln )
+bool bam2aln( const bam1_t * const buf, aligned_t & aln, int begin = 0, int end = 0 )
 {
     const uint32_t * cigar = bam1_cigar( buf );
-    int i, j, col = buf->core.pos, rpos = col, idx = 0, ins = 0;
+    int i, j, col = buf->core.pos, rpos = col, aln_idx = 0, seq_idx = 0, ins = 0;
 
     aln.len = buf->core.l_qseq;
-    aln.lpos = col;
     aln.data = reinterpret_cast< pos_t * >( malloc( aln.len * sizeof( pos_t ) ) );
     aln.ncontrib = 1;
 
@@ -117,15 +118,28 @@ bool bam2aln( const bam1_t * const buf, aligned_t & aln )
             else if ( op == BAM_CINS )
                 ++ins;
 
-            aln.data[ idx ].col = col;
-            aln.data[ idx ].ins = ins;
-            aln.data[ idx ].cov = 1;
-            aln.data[ idx ].nuc = bam1_seqi( bam1_seq( buf ), idx );
+            if ( col < begin ) {
+                ++seq_idx;
+                continue;
+            }
+            else if ( end && col > end )
+                goto done;
 
-            ++idx;
+            aln.data[ aln_idx ].col = col;
+            aln.data[ aln_idx ].ins = ins;
+            aln.data[ aln_idx ].cov = 1;
+            aln.data[ aln_idx ].nuc = bam1_seqi( bam1_seq( buf ), seq_idx );
+
+            ++aln_idx;
+            ++seq_idx;
         }
     }
 
+done:
+    if ( aln_idx )
+        aln.lpos = aln.data[ 0 ].col;
+    
+    aln.len = aln_idx;
     aln.rpos = rpos;
 
     /* this is probably not strictly necessary
@@ -136,22 +150,29 @@ bool bam2aln( const bam1_t * const buf, aligned_t & aln )
     return true;
 }
 
+
 typedef struct {
+    int begin;
+    int end;
     vector< aligned_t > & reads;
 } fetch_t;
 
-static int fetch_func( const bam1_t * b, void * data )
+
+static int fetch_func( const bam1_t * b, void * tmp )
 {
-    aligned_t read;
-    if ( bam2aln( b, read ) ) {
-        reinterpret_cast< fetch_t * >( data )->reads.push_back( read );
-    }
+    fetch_t * data = reinterpret_cast< fetch_t * >( tmp );
+    aligned_t read = { .data = NULL };
+    
+    if ( bam2aln( b, read, data->begin, data->end ) )
+        data->reads.push_back( read );
+    
     return 0;
 }
 
+
 void bamfile_t::fetch( vector< aligned_t > & reads, int begin, int end, int tid )
 {
-    fetch_t data = { .reads = reads };
+    fetch_t data = { .begin = begin, .end = end, .reads = reads };
 
     if ( !idx ) {
         cerr << "BAM index not found" << endl;
@@ -160,6 +181,7 @@ void bamfile_t::fetch( vector< aligned_t > & reads, int begin, int end, int tid 
 
     bam_fetch( fp, idx, tid, begin, end, reinterpret_cast< void * >( &data ), fetch_func );
 }
+
 
 bool bamfile_t::next( aligned_t & aln )
 {
@@ -251,7 +273,7 @@ bool bamfile_t::write(
     }
 
     const int end_idx = i;
-    buf->core.l_qseq = end - beg_idx; 
+    buf->core.l_qseq = end_idx - beg_idx; 
     bam1_cigar( buf )[ j++ ] = cigval( op, nop );
     buf->core.n_cigar = j;
 
@@ -266,8 +288,8 @@ bool bamfile_t::write(
     buf->m_data = buf->data_len;
     realloc_data( buf );
 
-    for ( i = beg_idx; i < end_idx; ++i ) {
-        bam1_seq_seti( bam1_seq( buf ), i, aln.data[ i ].nuc );
+    for ( i = beg_idx, j = 0; i < end_idx; ++i, ++j ) {
+        bam1_seq_seti( bam1_seq( buf ), j, aln.data[ i ].nuc );
     }
 
     // magic value to say "no quality scores present"
@@ -281,6 +303,7 @@ bool bamfile_t::write(
 
     bam_write1( fp, buf );
 
+    free( buf->data );
     memset( buf, 0, sizeof( bam1_t ) );
 
     return false;
