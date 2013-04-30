@@ -83,6 +83,7 @@ bamfile_t::~bamfile_t()
         bam_close( fp );
 }
 
+inline
 bool bam2aln( const bam1_t * const buf, aligned_t & aln, int begin = 0, int end = 0 )
 {
     const uint32_t * cigar = bam1_cigar( buf );

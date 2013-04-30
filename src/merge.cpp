@@ -42,6 +42,7 @@ char nuc2bits( const char nuc )
     }
 }
 
+
 char bits2nuc( const char bits )
 {
     switch ( bits ) {
@@ -63,6 +64,8 @@ char bits2nuc( const char bits )
     }
 }
 
+
+inline
 cmp_t pos_cmp( const pos_t & x, const pos_t & y )
 {
     // test the column, then the insertion, then equal
@@ -233,6 +236,7 @@ res_t merge_two(
 
     return SUCCESS;
 }
+
 
 int merge_clusters(
     const int nread,
