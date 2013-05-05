@@ -9,8 +9,8 @@ set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" 
 
 set(CMAKE_BUILD_TYPE RELEASE)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g -Wall -Werror")
-set(CMAKE_C_FLAGS_DEBUG "-O1 -g -Wall")
+set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g -pg -Wall -Werror")
+set(CMAKE_C_FLAGS_DEBUG "-O1 -g -pg -Wall")
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall")
