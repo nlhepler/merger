@@ -80,6 +80,19 @@ set_property(
     APPEND PROPERTY INCLUDE_DIRECTORIES external/samtools src
     )
 
+add_executable(
+    binmix
+    src/binmix/main.cpp
+    src/rateclass_em.cpp
+    )
+
+target_link_libraries(binmix m)
+
+set_property(
+    TARGET binmix
+    APPEND PROPERTY INCLUDE_DIRECTORIES src
+    )
+
 install(
     TARGETS merger sampler
 	RUNTIME DESTINATION bin
