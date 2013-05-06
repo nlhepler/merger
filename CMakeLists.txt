@@ -7,10 +7,10 @@ project(merger)
 set(INSTALL_PREFIX /usr/local CACHE PATH "Installation prefix")
 set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" FORCE)
 
-set(CMAKE_BUILD_TYPE RELEASE)
+set(CMAKE_BUILD_TYPE DEBUG)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g -pg -Wall -Werror")
-set(CMAKE_C_FLAGS_DEBUG "-O1 -g -pg -Wall")
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g -pg -Wall -Werror")
+set(CMAKE_C_FLAGS_DEBUG "-O3 -g -pg -Wall")
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall")

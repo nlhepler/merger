@@ -336,14 +336,14 @@ bool bamfile_t::write(
 }
 
 
-bool bamfile_t::write( const bam1_t * const aln )
+bool bamfile_t::write( const bam1_t * const bam )
 {
-    if ( !bam_validate1( NULL, aln ) ) {
+    if ( !bam_validate1( NULL, bam ) ) {
         cerr << "record failed validation" << endl;
         exit( 1 );
     }
 
-    bam_write1( fp, aln );
+    bam_write1( fp, bam );
 
     return true;
 }
