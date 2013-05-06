@@ -50,7 +50,7 @@ void realloc_data( bam1_t * const buf )
 }
 
 
-bamfile_t::bamfile_t( const char * path, bam_mode_t mode ) :
+bamfile_t::bamfile_t( const char * path, bam_mode_t mode, bool index ) :
     fp( NULL ),
     buf( NULL ),
     idx( NULL ),
@@ -58,7 +58,7 @@ bamfile_t::bamfile_t( const char * path, bam_mode_t mode ) :
 {
     if ( strcmp( path, "-" ) ) {
         fp = bam_open( path, ( mode == READ ) ? "r" : "w" );
-        if ( mode == READ )
+        if ( index && mode == READ )
             idx = bam_index_load( path );
     }
     else if ( mode == READ )

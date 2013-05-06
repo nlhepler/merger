@@ -21,7 +21,7 @@ private:
 public:
     bam_header_t * hdr;
 
-    bamfile_t( const char * path, bam_mode_t mode = READ );
+    bamfile_t( const char * path, bam_mode_t mode = READ, bool index = false );
     ~bamfile_t();
     bool next( aligned_t & aln );
     bool next( bam1_t * const aln );

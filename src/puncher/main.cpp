@@ -37,7 +37,7 @@ typedef vector< triple_t >::const_iterator read_citer;
 
 
 inline
-uint32_t cigval( int op, int nop )
+uint32_t cigval( const int op, const int nop )
 {
     return ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
 }
@@ -83,13 +83,13 @@ bam1_t * punchout_read(
     // and how long our new seq will be
     for ( ; rit != read.end() && vit != variants.end(); ) {
 
-        /*
+#if 0
         cerr << "r: ( " << rit->col << ", " << rit->ins << ", ";
         for ( unsigned j = 0; j < rit->elem.size(); ++j )
             cerr << bits2nuc( rit->elem[ j ] );
         cerr << " )" << endl;
         cerr << "v: ( " << vit->col << ", " << vit->ins << " )" << endl;
-        */
+#endif
 
         if ( rit->col == vit->col && rit->ins == vit->ins ) {
             obs_citer it = vit->obs.find( rit->elem );
@@ -129,7 +129,7 @@ bam1_t * punchout_read(
             ++vit;
     }
 
-    cerr << "seqlen: " << out_bam->core.l_qseq << endl;
+    // cerr << "seqlen: " << out_bam->core.l_qseq << endl;
 
     out_bam->data_len = in_bam->data_len;
     out_bam->m_data = out_bam->data_len;
@@ -140,49 +140,66 @@ bam1_t * punchout_read(
     // copy the read name
     memcpy( bam1_qname( out_bam ), bam1_qname( in_bam ), in_bam->core.l_qname );
 
-    // copy the cigar string
+    // update the cigar string
     {
         const uint32_t * cigar = bam1_cigar( in_bam );
         int in_idx = 0, out_idx = 0;
+        vector< int > cigar_;
 
         for ( int i = 0; i < in_bam->core.n_cigar; ++i ) {
             const int op = cigar[ i ] & BAM_CIGAR_MASK;
             const int nop = cigar[ i ] >> BAM_CIGAR_SHIFT;
 
             if ( op == BAM_CDEL )
-                bam1_cigar( out_bam )[ out_idx++ ] = cigar[ i ];
+                for ( int j = 0; j < nop; ++j )
+                    cigar_.push_back( BAM_CDEL );
             else if ( op == BAM_CINS ) {
+                if ( keep[ in_idx ].second != unsigned( nop ) ) {
+                    cerr << "assumptions violated ( 1 )" << endl;
+                    exit( 1 );
+                }
                 if ( keep[ in_idx ].first )
-                    bam1_cigar( out_bam )[ out_idx++ ] = cigval( op, keep[ in_idx ].second );
+                    for ( int j = 0; j < nop; ++j )
+                        cigar_.push_back( op );
                 else
-                    bam1_cigar( out_bam )[ out_idx++ ] = cigval( BAM_CDEL, keep[ in_idx ].second );
+                    for ( int j = 0; j < nop; ++j )
+                        cigar_.push_back( BAM_CDEL );
                 ++in_idx;
             }
             else if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
-                bool k = keep[ in_idx ].first;
-                int n = keep[ in_idx ].second;
-
-                ++in_idx;
-
-                for ( int j = n; j < nop; ++in_idx ) {
-                    bool k_ = keep[ in_idx ].first;
-                    if ( k_ == k )
-                        n += keep[ in_idx ].second;
-                    else {
-                        bam1_cigar( out_bam )[ out_idx++ ] = cigval( k ? op : BAM_CDEL, n );
-                        k = k_;
-                        n = keep[ in_idx ].second;
+                for ( int j = 0; j < nop; ++j, ++in_idx ) {
+                    if ( keep[ in_idx ].second != 1 ) {
+                        cerr << "assumptions violated ( 2 )" << endl;
+                        exit( 1 );
                     }
-                    j += keep[ in_idx ].second;
+                    if ( keep[ in_idx ].first )
+                        cigar_.push_back( op );
+                    else
+                        cigar_.push_back( BAM_CDEL );
                 }
+            }
+        }
 
-                bam1_cigar( out_bam )[ out_idx++ ] = cigval( k ? op : BAM_CDEL, n );
+        if ( cigar_.size() ) {
+            int op = cigar_[ 0 ];
+            int nop = 1;
+    
+            for ( unsigned i = 1; i < cigar_.size(); ++i ) {
+                if ( cigar_[ i ] == op )
+                    ++nop;
+                else {
+                    bam1_cigar( out_bam )[ out_idx++ ] = cigval( op, nop );
+                    op = cigar_[ i ];
+                    nop = 1;
+                }
+            
+                if ( out_bam->core.l_qname + out_idx >= out_bam->m_data ) {
+                    ++out_bam->m_data;
+                    realloc_data( out_bam );
+                }
             }
 
-            if ( out_bam->core.l_qname + out_idx >= out_bam->m_data ) {
-                ++out_bam->m_data;
-                realloc_data( out_bam );
-            }
+            bam1_cigar( out_bam )[ out_idx++ ] = cigval( op, nop );
         }
 
         out_bam->core.n_cigar = out_idx;
@@ -192,7 +209,7 @@ bam1_t * punchout_read(
 
     out_bam->data_len = (
             out_bam->core.l_qname +
-            out_bam->core.n_cigar +
+            4 * out_bam->core.n_cigar +
             ( out_bam->core.l_qseq + 1 ) / 2 +
             out_bam->core.l_qseq +
             out_bam->l_aux
@@ -255,12 +272,16 @@ bam1_t * punchout_read(
 }
 
 
-double prob_above_bg( const double lg_bg, const double lg_invbg, const int cov, const int k )
+double prob_background( const double lg_bg, const double lg_invbg, const int cov, const int k )
 {
-    double rv = exp( cov * lg_bg );
+    double rv = exp( cov * lg_invbg );
 
     for ( int i = 1; i < k; ++i )
         rv += exp( lg_choose( cov, i ) + i * lg_bg + ( cov - i ) * lg_invbg );
+
+    rv = 1.0 - rv;
+
+    // cerr << "cov: " << cov << ", k: " << k << ", prob: " << rv << endl;
 
     return rv;
 }
@@ -322,6 +343,8 @@ int main( int argc, const char * argv[] )
 
         params_json_dump( stderr, lg_L, aicc, params );
 
+        // cerr << "background: " << bg << endl;
+
         // determine which variants are above background and those which are not
         for ( cit = coverage.begin(); cit != coverage.end(); ++cit ) {
             col_t col = *cit;
@@ -331,7 +354,7 @@ int main( int argc, const char * argv[] )
                 cov += it->second;
 
             for ( obs_iter it = col.obs.begin(); it != col.obs.end(); ++it ) {
-                if ( prob_above_bg( lg_bg, lg_invbg, cov, it->second ) < args.cutoff )
+                if ( prob_background( lg_bg, lg_invbg, cov, it->second ) < args.cutoff )
                     it->second = 1;
                 else
                     it->second = 0;
@@ -361,6 +384,9 @@ int main( int argc, const char * argv[] )
             bam2vec( in_bam, read );
 
             bam1_t * out_bam = punchout_read( in_bam, variants, read );
+
+            if ( !out_bam->core.l_qseq )
+                continue;
 
             if ( !args.bamout->write( out_bam ) ) {
                 cerr << "error writing out read" << endl;

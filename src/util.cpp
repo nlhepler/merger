@@ -1,4 +1,5 @@
 
+#include <iostream>
 #include <vector>
 
 #include "bam.h"
@@ -6,14 +7,16 @@
 #include "util.hpp"
 
 
+using std::cerr;
+using std::endl;
 using std::vector;
 
 
 void bam2vec( const bam1_t * const bam, vector< triple_t > & data )
 {
     const uint32_t * cigar = bam1_cigar( bam );
-    int col = bam->core.pos, idx = 0;
-    
+    int col = bam->core.pos - 1, idx = 0;
+
     for ( int i = 0; i < bam->core.n_cigar; ++i ) {
         const int op = cigar[ i ] & BAM_CIGAR_MASK;
         const int nop = cigar[ i ] >> BAM_CIGAR_SHIFT;
@@ -24,7 +27,7 @@ void bam2vec( const bam1_t * const bam, vector< triple_t > & data )
         }
         else if ( op == BAM_CINS ) {
             triple_t tri;
-            
+
             for ( int j = 0; j < nop; ++j ) {
                 tri.elem.push_back( bam1_seqi( bam1_seq( bam ), idx ) );
                 ++idx;
@@ -32,6 +35,13 @@ void bam2vec( const bam1_t * const bam, vector< triple_t > & data )
 
             tri.col = col;
             tri.ins = true;
+
+#if 0
+            cerr << "r: ( " << col << ", " << 1 << ", ";
+            for ( unsigned k = 0; k < tri.elem.size(); ++k )
+                cerr << bits2nuc( tri.elem[ k ] );
+            cerr << " )" << endl;
+#endif
 
             data.push_back( tri );
         }
@@ -42,12 +52,14 @@ void bam2vec( const bam1_t * const bam, vector< triple_t > & data )
                 tri.elem.push_back( bam1_seqi( bam1_seq( bam ), idx ) );
                 ++idx;
 
-                tri.col = col;
+                tri.col = ++col;
                 tri.ins = false;
 
-                data.push_back( tri );
+#if 0
+                cerr << "r: ( " << col << ", " << 0 << ", " << bits2nuc( tri.elem[ 0 ] ) << " )" << endl;
+#endif
 
-                col += 1;
+                data.push_back( tri );
             }
         }
     }
