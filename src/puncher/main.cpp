@@ -383,7 +383,7 @@ int main( int argc, const char * argv[] )
 
             bam2vec( in_bam, read );
 
-            bam1_t * out_bam = punchout_read( in_bam, variants, read );
+            bam1_t * const out_bam = punchout_read( in_bam, variants, read );
 
             if ( !out_bam->core.l_qseq )
                 continue;
