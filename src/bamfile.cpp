@@ -35,6 +35,7 @@ void calloc_data( bam1_t * const buf )
 }
 
 
+inline
 void realloc_data( bam1_t * const buf )
 {
     kroundup32( buf->m_data );
@@ -331,7 +332,7 @@ bool bamfile_t::write(
     free( buf->data );
     memset( buf, 0, sizeof( bam1_t ) );
 
-    return false;
+    return true;
 }
 
 
@@ -344,5 +345,5 @@ bool bamfile_t::write( const bam1_t * const aln )
 
     bam_write1( fp, aln );
 
-    return false;
+    return true;
 }

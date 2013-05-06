@@ -1,6 +1,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <list>
 #include <utility>
@@ -35,6 +36,28 @@ typedef vector< col_t >::const_iterator var_citer;
 typedef vector< triple_t >::const_iterator read_citer;
 
 
+inline
+uint32_t cigval( int op, int nop )
+{
+    return ( BAM_CIGAR_MASK & op ) | ( nop << BAM_CIGAR_SHIFT );
+}
+
+
+inline
+void realloc_data( bam1_t * const bam )
+{
+    kroundup32( bam->m_data );
+    uint8_t * data = reinterpret_cast< uint8_t * >( realloc( bam->data, bam->m_data * sizeof( uint8_t ) ) );
+
+    if ( !data ) {
+        cerr << "memory allocation error" << endl;
+        exit( 1 );
+    }
+
+    bam->data = data;
+}
+
+
 bam1_t * punchout_read(
         const bam1_t * const in_bam,
         const vector< col_t > & variants,
@@ -57,8 +80,17 @@ bam1_t * punchout_read(
     out_bam->core.l_qseq = 0;
 
     // build a vector of which positions we're keeping,
-    // and how long our new cigar and seq will be
+    // and how long our new seq will be
     for ( ; rit != read.end() && vit != variants.end(); ) {
+
+        /*
+        cerr << "r: ( " << rit->col << ", " << rit->ins << ", ";
+        for ( unsigned j = 0; j < rit->elem.size(); ++j )
+            cerr << bits2nuc( rit->elem[ j ] );
+        cerr << " )" << endl;
+        cerr << "v: ( " << vit->col << ", " << vit->ins << " )" << endl;
+        */
+
         if ( rit->col == vit->col && rit->ins == vit->ins ) {
             obs_citer it = vit->obs.find( rit->elem );
 
@@ -101,16 +133,12 @@ bam1_t * punchout_read(
 
     out_bam->data_len = in_bam->data_len;
     out_bam->m_data = out_bam->data_len;
-    kroundup32( out_bam->m_data );
-    out_bam->data = reinterpret_cast< uint8_t * >( malloc( out_bam->m_data * sizeof( uint8_t ) ) );
+    out_bam->data = NULL;
 
-    if ( !out_bam->data ) {
-        cerr << "memory allocation error" << endl;
-        exit( 1 );
-    }
+    realloc_data( out_bam );
 
     // copy the read name
-    memcpy( in_bam->data, out_bam->data, in_bam->core.l_qname );
+    memcpy( bam1_qname( out_bam ), bam1_qname( in_bam ), in_bam->core.l_qname );
 
     // copy the cigar string
     {
@@ -119,28 +147,62 @@ bam1_t * punchout_read(
 
         for ( int i = 0; i < in_bam->core.n_cigar; ++i ) {
             const int op = cigar[ i ] & BAM_CIGAR_MASK;
+            const int nop = cigar[ i ] >> BAM_CIGAR_SHIFT;
 
-            if ( op == BAM_CDEL ) {
+            if ( op == BAM_CDEL )
                 bam1_cigar( out_bam )[ out_idx++ ] = cigar[ i ];
+            else if ( op == BAM_CINS ) {
+                if ( keep[ in_idx ].first )
+                    bam1_cigar( out_bam )[ out_idx++ ] = cigval( op, keep[ in_idx ].second );
+                else
+                    bam1_cigar( out_bam )[ out_idx++ ] = cigval( BAM_CDEL, keep[ in_idx ].second );
+                ++in_idx;
             }
-            else if ( op == BAM_CINS || op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
-                if ( keep[ in_idx++ ].first )
-                    bam1_cigar( out_bam )[ out_idx++ ] = cigar[ i ];
+            else if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
+                bool k = keep[ in_idx ].first;
+                int n = keep[ in_idx ].second;
+
+                ++in_idx;
+
+                for ( int j = n; j < nop; ++in_idx ) {
+                    bool k_ = keep[ in_idx ].first;
+                    if ( k_ == k )
+                        n += keep[ in_idx ].second;
+                    else {
+                        bam1_cigar( out_bam )[ out_idx++ ] = cigval( k ? op : BAM_CDEL, n );
+                        k = k_;
+                        n = keep[ in_idx ].second;
+                    }
+                    j += keep[ in_idx ].second;
+                }
+
+                bam1_cigar( out_bam )[ out_idx++ ] = cigval( k ? op : BAM_CDEL, n );
             }
 
-            if ( out_idx >= out_bam->m_data ) {
+            if ( out_bam->core.l_qname + out_idx >= out_bam->m_data ) {
                 ++out_bam->m_data;
-                kroundup32( out_bam->m_data );
-                out_bam->data = reinterpret_cast< uint8_t * >( realloc( out_bam->data, out_bam->m_data * sizeof( uint8_t ) ) );
-                if ( !out_bam->data ) {
-                    cerr << "memory allocation error" << endl;
-                    exit( 1 );
-                }
+                realloc_data( out_bam );
             }
         }
 
         out_bam->core.n_cigar = out_idx;
     }
+
+    out_bam->l_aux = in_bam->l_aux;
+
+    out_bam->data_len = (
+            out_bam->core.l_qname +
+            out_bam->core.n_cigar +
+            ( out_bam->core.l_qseq + 1 ) / 2 +
+            out_bam->core.l_qseq +
+            out_bam->l_aux
+            );
+
+    out_bam->m_data = out_bam->data_len;
+
+    realloc_data( out_bam );
+
+    memcpy( bam1_aux( out_bam ), bam1_aux( in_bam ), in_bam->l_aux );
 
     // copy the sequence and quality scores
     {
@@ -161,7 +223,7 @@ bam1_t * punchout_read(
             bam1_qual( out_bam )[ 0 ] = 0xFF;
         else {
             in_idx = 0, out_idx = 0;
-            
+
             for ( unsigned i = 0; keep.size(); ++i ) {
                 if ( keep[ i ].first )
                     for ( unsigned k = 0; k < keep[ i ].second; ++k )
@@ -175,11 +237,11 @@ bam1_t * punchout_read(
     if ( cols.size() )
         out_bam->core.pos = cols[ 0 ];
 
-    memcpy( bam1_aux( in_bam ), bam1_aux( out_bam ), in_bam->l_aux );
-
     out_bam->core.bin = bam_reg2bin( out_bam->core.pos, bam_calend( &out_bam->core, bam1_cigar( out_bam ) ) );
 
     if ( bam_cigar2qlen( &out_bam->core, bam1_cigar( out_bam ) ) != out_bam->core.l_qseq ) {
+        cerr << "cig2qlen: " << bam_cigar2qlen( &out_bam->core, bam1_cigar( out_bam ) ) << endl;
+        cerr << "l_qseq:   " << out_bam->core.l_qseq << endl;
         cerr << "invalid CIGAR string for sequence length" << endl;
         exit( 1 );
     }

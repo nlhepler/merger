@@ -34,8 +34,6 @@ void bam2vec( const bam1_t * const bam, vector< triple_t > & data )
             tri.ins = true;
 
             data.push_back( tri );
-
-            col += nop;
         }
         else if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
             for ( int j = 0; j < nop; ++j ) {
