@@ -6,10 +6,6 @@
 
 enum res_t { SUCCESS, FAILURE, ERROR };
 
-char nuc2bits( const char nuc );
-
-char bits2nuc( const char bits );
-
 bool ncontrib_cmp( const aligned_t & x, const aligned_t & y );
 
 res_t merge_two(

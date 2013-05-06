@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstdio>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -17,6 +18,36 @@ using std::make_pair;
 using std::pair;
 using std::sort;
 using std::vector;
+
+
+void params_json_dump(
+        FILE * const file,
+        const double lg_L,
+        const double aicc,
+        const vector< pair< double, double > > & params
+        )
+{
+    fprintf( file, "{\n  \"logl\":     % .3f,\n  \"aicc\":     % .3f,\n  \"rates\":   [ ", lg_L, aicc );
+        
+    for ( unsigned i = 0; i < params.size(); ++i ) {
+        if ( i > 0 )
+            fprintf( file, ", %.7f", params[ i ].second );
+        else
+            fprintf( file, "%.7f", params[ i ].second );
+    }
+
+    fprintf( file, " ],\n  \"weights\": [ " );
+    
+    for ( unsigned i = 0; i < params.size(); ++i ) {
+        if ( i > 0 )
+            fprintf( file, ", %.7f", params[ i ].first );
+        else
+            fprintf( file, "%.7f", params[ i ].first );
+    }
+    
+    fprintf( file, " ]\n}\n" );
+    fflush( file );
+}
 
 
 inline

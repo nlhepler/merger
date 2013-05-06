@@ -16,6 +16,7 @@ private:
     bamFile fp;
     bam1_t * buf;
     bam_index_t * idx;
+    long zero;
 
 public:
     bam_header_t * hdr;
@@ -25,7 +26,7 @@ public:
     bool next( aligned_t & aln );
     bool next( bam1_t * const aln );
     void fetch( std::vector< aligned_t > & reads, int begin, int end, int tid = 0 );
-    bool seek( const long pos );
+    bool seek0();
     bool write_header( const bam_header_t * hdr_ = NULL );
     bool write( const char * const qname, aligned_t & aln, int begin = 0, int end = 0 );
     bool write( const bam1_t * const aln );

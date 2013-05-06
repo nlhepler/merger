@@ -5,6 +5,13 @@
 #ifndef RATECLASS_EM_H
 #define RATECLASS_EM_H
 
+void params_json_dump(
+        FILE * const file,
+        const double lg_L,
+        const double aicc,
+        const std::vector< std::pair< double, double > > & params
+        );
+
 class rateclass_t
 {
 private:

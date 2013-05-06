@@ -14,4 +14,8 @@ typedef struct {
 
 void bam2vec( const bam1_t * const bam, std::vector< triple_t > & data );
 
+char nuc2bits( const char nuc );
+
+char bits2nuc( const char bits );
+
 #endif // BAMITER_H

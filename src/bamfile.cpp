@@ -65,10 +65,14 @@ bamfile_t::bamfile_t( const char * path, bam_mode_t mode ) :
     else
         fp = bam_dopen( fileno( stdout ), "w" );
 
-    if ( fp != NULL ) {
-        hdr = ( mode == READ ) ? bam_header_read( fp ) : bam_header_init();
-        buf = bam_init1();
+    if ( fp == NULL ) {
+        cerr << "failed to open BAM file: " << path << endl;
+        exit( 1 );
     }
+
+    hdr = ( mode == READ ) ? bam_header_read( fp ) : bam_header_init();
+    buf = bam_init1();
+    zero = bam_tell( fp );
 }
 
 bamfile_t::~bamfile_t()
@@ -220,9 +224,9 @@ bool bamfile_t::write_header( const bam_header_t * hdr_ )
 }
 
 
-bool bamfile_t::seek( const long pos )
+bool bamfile_t::seek0()
 {
-    return bam_seek( fp, pos, SEEK_SET ) == 0;
+    return bam_seek( fp, zero, SEEK_SET ) == 0;
 }
 
 

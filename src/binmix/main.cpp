@@ -30,26 +30,7 @@ int main( int argc, char * argv[] )
 
     rc( lg_L, aicc, params );
 
-    fprintf( stdout, "{\n  \"lg_L\":     % .3f\n  \"aicc\":     % .3f\n  \"rates\":   [ ", lg_L, aicc );
-
-    for ( it = params.begin(); it != params.end(); ++it ) {
-        if ( it == params.begin() )
-            fprintf( stdout, "%.7f", it->second );
-        else
-            fprintf( stdout, ", %.7f", it->second );
-    }
-
-    cout << " ]," << endl;
-    cout << "  \"weights\": [ ";
-
-    for ( it = params.begin(); it != params.end(); ++it ) {
-        if ( it == params.begin() )
-            fprintf( stdout, "%.7f", it->first );
-        else
-            fprintf( stdout, ", %.7f", it->first );
-    }
-
-    cout << " ]" << endl << "}" << endl;
+    params_json_dump( stderr, lg_L, aicc, params );
 
     return 0;
 }

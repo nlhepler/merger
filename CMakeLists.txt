@@ -48,8 +48,9 @@ add_executable(
     merger
     src/merger/main.cpp
     src/merger/args.cpp
-    src/merge.cpp
     src/bamfile.cpp
+    src/merge.cpp
+    src/util.cpp
     )
 
 target_link_libraries(merger bam pthread m z)
@@ -81,8 +82,9 @@ add_executable(
     sampler
     src/sampler/main.cpp
     src/sampler/args.cpp
-    src/merge.cpp
     src/bamfile.cpp
+    src/merge.cpp
+    src/util.cpp
     )
 
 target_link_libraries(sampler bam pthread m z)

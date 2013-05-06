@@ -54,7 +54,7 @@ void include( list< col_t > & cov, const vector< triple_t > & read )
         else if ( cit->col == rit->col && cit->ins )
             ++cit;
         else if ( rit->col < cit->col ) {
-            col_t newcol = { .col = rit->col, .ins = 0 };
+            col_t newcol = { .col = rit->col, .ins = rit->ins };
 
             newcol.obs[ rit->elem ] = 1;
             cov.insert( cit, newcol );
@@ -63,5 +63,12 @@ void include( list< col_t > & cov, const vector< triple_t > & read )
         }
         else // if ( cit->col < rit->col )
             ++cit;
+    }
+
+    for ( ; rit != read.end(); ++rit ) {
+        col_t newcol = { .col = rit->col, .ins = rit->ins };
+
+        newcol.obs[ rit->elem ] = 1;
+        cov.insert( cit, newcol );
     }
 }
