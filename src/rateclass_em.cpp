@@ -73,13 +73,13 @@ double lg_likelihood(
     double lg_params[ 3 * params.size() ], lg_L = 0.0;
 
     // precompute log-params
-    for ( int i = 0; i < params.size(); ++i ) {
+    for ( unsigned i = 0; i < params.size(); ++i ) {
         lg_params[ 3 * i + 0 ] = log( params[ i ].first );
         lg_params[ 3 * i + 1 ] = log( params[ i ].second );
         lg_params[ 3 * i + 2 ] = log( 1.0 - params[ i ].second );
     }
 
-    for ( int i = 0; i < data.size(); ++i ) {
+    for ( unsigned i = 0; i < data.size(); ++i ) {
         const int cov = data[ i ].first, maj = data[ i ].second;
         double buf[ params.size() ];
         double max = lg_binomial( cov, maj, &lg_params[ 0 ] );
@@ -87,18 +87,18 @@ double lg_likelihood(
 
         buf[ 0 ] = max;
 
-        for ( int j = 1; j < params.size(); ++j ) {
+        for ( unsigned j = 1; j < params.size(); ++j ) {
             buf[ j ] = lg_binomial( cov, maj, &lg_params[ 3 * j ] );
             if ( buf[ j ] > max )
                 max = buf[ j ];
         }
 
-        for ( int j = 0; j < params.size(); ++j ) {
+        for ( unsigned j = 0; j < params.size(); ++j ) {
             buf[ j ] = exp( buf[ j ] - max );
             sum += buf[ j ];
         }
 
-        for ( int j = 0; j < params.size(); ++j )
+        for ( unsigned j = 0; j < params.size(); ++j )
             pij[ i * params.size() + j ] = buf[ j ] / sum;
 
         lg_L += log( sum ) + max;
@@ -117,10 +117,10 @@ void update_params(
         vector< pair< double, double > > & params // [ ( weight, rate ) ]
         )
 {
-    for ( int i = 0; i < params.size(); ++i ) {
+    for ( unsigned i = 0; i < params.size(); ++i ) {
         double sum = 0.0, sum_cov = 0.0, sum_maj = 0.0;
 
-        for ( int j = 0; j < data.size(); ++j ) {
+        for ( unsigned j = 0; j < data.size(); ++j ) {
             double p = pij[ j * params.size() + i ];
             sum += p;
             sum_cov += p * data[ j ].first;
@@ -141,7 +141,7 @@ void initialize_params( vector< pair< double, double > > & params, const int ite
 {
     double sum = 0.0;
 
-    for ( int i = 0; i < params.size(); ++i ) {
+    for ( unsigned i = 0; i < params.size(); ++i ) {
         if ( iter >= 10 || i >= params.size() - 1 ) {
             params[ i ].first = rand() / double( RAND_MAX );
             params[ i ].second = rand() / double( RAND_MAX );
@@ -149,7 +149,7 @@ void initialize_params( vector< pair< double, double > > & params, const int ite
         sum += params[ i ].first;
     }
 
-    for ( int i = 0; i < params.size(); ++i )
+    for ( unsigned i = 0; i < params.size(); ++i )
         params[ i ].first /= sum;
 }
 
@@ -165,7 +165,7 @@ double EM(
     if ( params.size() == 1 ) {
         int sum_cov = 0, sum_maj = 0;
 
-        for ( int i = 0; i < data.size(); ++i ) {
+        for ( unsigned i = 0; i < data.size(); ++i ) {
             sum_cov += data[ i ].first;
             sum_maj += data[ i ].second;
         }
@@ -230,7 +230,7 @@ void rateclass_t::operator()(
     lg_L = EM( data, params );
     aicc = _aicc( 1, lg_L, data.size() );
 
-    for ( int i = 2; i <= 10; ++i ) {
+    for ( int i = 2; ; ++i ) {
         double old_lg_L, old_aicc;
         vector< pair< double, double > > old_params = params;
 
@@ -265,7 +265,7 @@ void rateclass_t::operator()(
 
     // we've actually rates corresponding to the majority,
     // but we really want the inverse
-    for ( int i = 0; i < params.size(); ++i )
+    for ( unsigned i = 0; i < params.size(); ++i )
         params[ i ].second = 1.0 - params[ i ].second;
 
     sort( params.begin(), params.end(), rate_cmp );

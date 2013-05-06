@@ -99,7 +99,7 @@ bam1_t * punchout_read(
 
     cerr << "seqlen: " << out_bam->core.l_qseq << endl;
 
-    out_bam->data_len = out_bam->data_len;
+    out_bam->data_len = in_bam->data_len;
     out_bam->m_data = out_bam->data_len;
     kroundup32( out_bam->m_data );
     out_bam->data = reinterpret_cast< uint8_t * >( malloc( out_bam->m_data * sizeof( uint8_t ) ) );
