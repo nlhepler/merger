@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "math.hpp"
 #include "rateclass_em.hpp"
 
 using std::cerr;
@@ -16,17 +17,6 @@ using std::make_pair;
 using std::pair;
 using std::sort;
 using std::vector;
-
-
-double lg_choose( const int n, const int k )
-{
-    double rv = 0.0;
-
-    for ( int i = 1; i <= k; ++i )
-        rv += log( n - k + i ) - log( i );
-
-    return rv;
-}
 
 
 inline

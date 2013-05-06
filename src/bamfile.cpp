@@ -139,7 +139,7 @@ bool bam2aln( const bam1_t * const buf, aligned_t & aln, int begin = 0, int end 
 done:
     if ( aln_idx )
         aln.lpos = aln.data[ 0 ].col;
-    
+
     aln.len = aln_idx;
     aln.rpos = rpos;
 
@@ -163,10 +163,10 @@ static int fetch_func( const bam1_t * b, void * tmp )
 {
     fetch_t * data = reinterpret_cast< fetch_t * >( tmp );
     aligned_t read = { .data = NULL };
-    
+
     if ( bam2aln( b, read, data->begin, data->end ) )
         data->reads.push_back( read );
-    
+
     return 0;
 }
 
@@ -196,6 +196,19 @@ bool bamfile_t::next( aligned_t & aln )
     return false;
 }
 
+
+bool bamfile_t::next( bam1_t * const aln )
+{
+    if ( fp->is_write )
+        return false;
+
+    if ( bam_read1( fp, aln ) >= 0 )
+        return true;
+
+    return false;
+}
+
+
 bool bamfile_t::write_header( const bam_header_t * hdr_ )
 {
     if ( !fp->is_write )
@@ -205,6 +218,13 @@ bool bamfile_t::write_header( const bam_header_t * hdr_ )
 
     return true;
 }
+
+
+bool bamfile_t::seek( const long pos )
+{
+    return bam_seek( fp, pos, SEEK_SET ) == 0;
+}
+
 
 bool bamfile_t::write(
     const char * const qname,
@@ -274,7 +294,7 @@ bool bamfile_t::write(
     }
 
     const int end_idx = i;
-    buf->core.l_qseq = end_idx - beg_idx; 
+    buf->core.l_qseq = end_idx - beg_idx;
     bam1_cigar( buf )[ j++ ] = cigval( op, nop );
     buf->core.n_cigar = j;
 
@@ -306,6 +326,19 @@ bool bamfile_t::write(
 
     free( buf->data );
     memset( buf, 0, sizeof( bam1_t ) );
+
+    return false;
+}
+
+
+bool bamfile_t::write( const bam1_t * const aln )
+{
+    if ( !bam_validate1( NULL, aln ) ) {
+        cerr << "record failed validation" << endl;
+        exit( 1 );
+    }
+
+    bam_write1( fp, aln );
 
     return false;
 }

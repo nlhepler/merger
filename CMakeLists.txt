@@ -61,6 +61,23 @@ set_property(
     )
 
 add_executable(
+    puncher
+    src/puncher/main.cpp
+    src/puncher/args.cpp
+    src/bamfile.cpp
+    src/coverage.cpp
+    src/rateclass_em.cpp
+    src/util.cpp
+    )
+
+target_link_libraries(puncher bam pthread m z)
+
+set_property(
+    TARGET puncher
+    APPEND PROPERTY INCLUDE_DIRECTORIES src/puncher
+    )
+
+add_executable(
     sampler
     src/sampler/main.cpp
     src/sampler/args.cpp
@@ -76,7 +93,7 @@ set_property(
     )
 
 set_property(
-    TARGET merger sampler
+    TARGET merger puncher sampler
     APPEND PROPERTY INCLUDE_DIRECTORIES external/samtools src
     )
 

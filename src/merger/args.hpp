@@ -5,7 +5,7 @@
 #define ARGPARSE_H
 
 // program name
-#define EXEC "merge"
+#define EXEC "merger"
 
 // argument defaults
 #define DEFAULT_MIN_OVERLAP 100

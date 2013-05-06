@@ -8,7 +8,7 @@
 #ifndef BAMFILE_H
 #define BAMFILE_H
 
-enum bam_mode_t { READ, WRITE }; 
+enum bam_mode_t { READ, WRITE };
 
 class bamfile_t
 {
@@ -23,9 +23,12 @@ public:
     bamfile_t( const char * path, bam_mode_t mode = READ );
     ~bamfile_t();
     bool next( aligned_t & aln );
+    bool next( bam1_t * const aln );
     void fetch( std::vector< aligned_t > & reads, int begin, int end, int tid = 0 );
+    bool seek( const long pos );
     bool write_header( const bam_header_t * hdr_ = NULL );
     bool write( const char * const qname, aligned_t & aln, int begin = 0, int end = 0 );
+    bool write( const bam1_t * const aln );
 };
 
 #endif // BAMFILE_H
