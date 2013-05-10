@@ -83,7 +83,8 @@ namespace aligned
     }
 
 
-    aligned_t::aligned_t() : 
+    aligned_t::aligned_t() :
+        list< pos_t >(),
         tid( 0 ),
         qual( 0xFF ),
         flag(  0 ),
@@ -95,6 +96,7 @@ namespace aligned
     }
 
     aligned_t::aligned_t( const bam1_t * const bam ) :
+        list< pos_t >(),
         tid( bam->core.tid ),
         qual( bam->core.qual ),
         flag( bam->core.flag ),

@@ -18,15 +18,15 @@ namespace merge
     bool merge_two(
         const aligned::aligned_t & x,
         const aligned::aligned_t & y,
-        const int min_overlap,
+        const unsigned min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
         aligned::aligned_t & merged
         );
 
     void merge_clusters(
-        const int nread,
-        const int min_overlap,
+        const unsigned nread,
+        const unsigned min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
         std::vector< aligned::aligned_t > & clusters
@@ -34,7 +34,7 @@ namespace merge
 
     int merge_reads(
         bamfile::bamfile_t & bamfile,
-        const int min_reads,
+        const unsigned min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
         const bool discard,

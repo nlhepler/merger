@@ -47,36 +47,35 @@ namespace merge
     bool merge_two(
         const aligned_t & x,
         const aligned_t & y,
-        const int min_overlap,
+        const unsigned min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
         aligned_t & merged
         )
     {
         aligned_t::const_iterator a = x.begin(), b = y.begin();
-        const aligned_t::iterator c = merged.begin();
-        int overlap = 0;
+        unsigned overlap = 0;
+
+        merged.clear();
 
         if ( a == x.end() || b == y.end() )
             return false;
 
         if ( a->col < b->col )
-            for ( ; a->col < b->col && a != x.end(); ++a );
+            for ( ; a->col < b->col && a != x.end(); merged.push_back( *( a++ ) ) );
         else if ( a->col > b->col )
-            for ( ; b->col < a->col && b != x.end(); ++b );
+            for ( ; b->col < a->col && b != x.end(); merged.push_back( *( b++ ) ) );
 
         while ( a != x.end() || b != y.end() ) {
             if ( a->col < b->col ) {
-                if ( tol_gaps )
-                    merged.insert( c, *( a++ ) );
-                else
+                if ( !tol_gaps )
                     goto abort;
+                merged.push_back( *( a++ ) );
             }
             else if ( b->col < a->col ) {
-                if ( tol_gaps )
-                    merged.insert( c, *( b++ ) );
-                else
+                if ( !tol_gaps )
                     goto abort;
+                merged.push_back( *( b++ ) );
             }
             else if ( a->op == b->op ) {
                 vector< pair< char, char > >::const_iterator ap = a->data.begin();
@@ -99,8 +98,7 @@ namespace merge
                         goto abort;
                 }
 
-                merged.insert(
-                    c,
+                merged.push_back(
                     pos_t(
                         a->col,
                         a->op,
@@ -113,16 +111,14 @@ namespace merge
                 ++b;
             }
             else if ( a->op == INS ) {
-                if ( tol_gaps )
-                    merged.insert( c, *( b++ ) );
-                else
+                if ( !tol_gaps )
                     goto abort;
+                merged.push_back( *( b++ ) );
             }
             else { // b->op == INS
-                if ( tol_gaps )
-                    merged.insert( c, *( a++ ) );
-                else
+                if ( !tol_gaps )
                     goto abort;
+                merged.push_back( *( a++ ) );
             }
         }
 
@@ -130,9 +126,9 @@ namespace merge
             goto abort;
 
         if ( a != x.end() )
-            for ( ; a != x.end(); merged.insert( c, *( a++ ) ) );
+            for ( ; a != x.end(); merged.push_back( *( a++ ) ) );
         else if ( b != y.end() )
-            for ( ; b != y.end(); merged.insert( c, *( b++ ) ) );
+            for ( ; b != y.end(); merged.push_back( *( b++ ) ) );
 
         if ( !x.ncontrib )
             ++merged.ncontrib;
@@ -155,7 +151,7 @@ abort:
 
     void merge_clusters(
         const unsigned nread,
-        const int min_overlap,
+        const unsigned min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
         vector< aligned_t > & clusters
@@ -201,7 +197,7 @@ begin:
 
     int merge_reads(
         bamfile_t & bamfile,
-        const int min_overlap,
+        const unsigned min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
         const bool discard,
@@ -252,12 +248,12 @@ next:;
 
         fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)\n", nread, clusters.size() );
 
+        sort( clusters.begin(), clusters.end(), aln_cmp );
+
         if ( !discard ) {
             clusters.reserve( clusters.size() + discarded.size() );
             clusters.insert( clusters.end(), discarded.begin(), discarded.end() );
         }
-
-        sort( clusters.begin(), clusters.end(), aln_cmp );
 
         bam_destroy1( bam );
 
