@@ -3,72 +3,90 @@
 #include <map>
 #include <vector>
 
-#include "aligned.h"
+#include "aligned.hpp"
 #include "coverage.hpp"
-#include "util.hpp"
+
 
 using std::list;
 using std::map;
+using std::string;
 using std::vector;
 
-
-typedef list< col_t >::iterator cov_iter;
-typedef map< vector< char >, int >::iterator obs_iter;
-typedef vector< triple_t >::const_iterator read_citer;
+using aligned::INS;
+using aligned::aligned_t;
 
 
-void include( list< col_t > & cov, const vector< triple_t > & read )
+namespace coverage
 {
-    cov_iter cit = cov.begin();
-    read_citer rit = read.begin();
+    void elem_t::get_seq( string & str ) const
+    {
+        vector< char >::const_iterator it;
 
-    for ( ; cit != cov.end() && rit != read.end(); ) {
-        if ( cit->col == rit->col && cit->ins == rit->ins ) {
-            obs_iter mit = cit->obs.find( rit->elem );
+        str.clear();
 
-            if ( mit != cit->obs.end() )
-                ++mit->second;
-            else
-                cit->obs[ rit->elem ] = 1;
-
-            // increment iterators here
-            ++rit;
-            ++cit;
-        }
-        else if ( cit->col == rit->col && rit->ins ) {
-            col_t newcol = { .col = rit->col, .ins = 1 };
-
-            ++cit;
-
-            // we cover this case above
-            if ( cit->col == rit->col && cit->ins )
-                continue;
-
-            // it's a new insertion, so add it to our coverage
-            newcol.obs[ rit->elem ] = 1;
-            cov.insert( cit, newcol );
-
-            // cit has already been incremented, but not rit
-            ++rit;
-        }
-        else if ( cit->col == rit->col && cit->ins )
-            ++cit;
-        else if ( rit->col < cit->col ) {
-            col_t newcol = { .col = rit->col, .ins = rit->ins };
-
-            newcol.obs[ rit->elem ] = 1;
-            cov.insert( cit, newcol );
-
-            ++rit;
-        }
-        else // if ( cit->col < rit->col )
-            ++cit;
+        for ( it = begin(); it != end(); ++it )
+            str.push_back( *it );
     }
 
-    for ( ; rit != read.end(); ++rit ) {
-        col_t newcol = { .col = rit->col, .ins = rit->ins };
+    void coverage_t::include( const aligned_t & read )
+    {
+        iterator cit = begin();
+        aligned_t::const_iterator rit = read.begin();
+        elem_t elem;
 
-        newcol.obs[ rit->elem ] = 1;
-        cov.insert( cit, newcol );
+        for ( ; cit != end() && rit != read.end(); ) {
+            if ( cit->col == rit->col && cit->op == rit->op ) {
+                rit->get_seq( elem );
+                map< elem_t, int >::iterator mit = cit->obs.find( elem );
+
+                if ( mit != cit->obs.end() )
+                    ++mit->second;
+                else
+                    cit->obs[ elem ] = 1;
+
+                // increment iterators here
+                ++rit;
+                ++cit;
+            }
+            else if ( cit->col == rit->col && rit->op == INS ) {
+                cov_t cov = { .col = rit->col, .op = INS };
+
+                ++cit;
+
+                // we cover this case above
+                if ( cit->col == rit->col && cit->op == INS )
+                    continue;
+
+                // it's a new insertion, so add it to our coverage
+                rit->get_seq( elem );
+                cov.obs[ elem ] = 1;
+                insert( cit, cov );
+
+                // cit has already been incremented, but not rit
+                ++rit;
+            }
+            else if ( rit->col < cit->col ) {
+                cov_t cov = { .col = rit->col, .op = rit->op };
+
+                rit->get_seq( elem );
+                cov.obs[ elem ] = 1;
+                insert( cit, cov );
+
+                ++rit;
+            }
+            // we cover these cases above
+            else if ( cit->col == rit->col && cit->op == INS )
+                ++cit;
+            else // if ( cit->col < rit->col )
+                ++cit;
+        }
+
+        for ( ; rit != read.end(); ++rit ) {
+            cov_t cov = { .col = rit->col, .op = rit->op };
+
+            rit->get_seq( elem );
+            cov.obs[ elem ] = 1;
+            insert( cit, cov );
+        }
     }
 }

@@ -7,6 +7,12 @@
 
 #include "args.hpp"
 
+
+using bamfile::READ;
+using bamfile::WRITE;
+using bamfile::bamfile_t;
+
+
 // some crazy shit for stringifying preprocessor directives
 #define STRIFY(x) #x
 #define TO_STR(x) STRIFY(x)

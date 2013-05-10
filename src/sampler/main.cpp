@@ -7,13 +7,24 @@
 #include "bamfile.hpp"
 #include "merge.hpp"
 
+
 using std::sort;
 using std::vector;
+
+using merge::ERROR;
+using merge::SUCCESS;
+using merge::aligned_destroy;
+using merge::merge_clusters;
+using merge::merge_two;
+using merge::ncontrib_cmp;
+using merge::res_t;
+
 
 #define MERGE_SIZE 128
 #define MIN( a, b ) ( ( (a) < (b) ) ? (a) : (b) )
 
-int merge(
+
+int merge_(
     args_t & args,
     vector< aligned_t > & reads,
     vector< aligned_t > & clusters
@@ -85,7 +96,7 @@ int main( int argc, const char * argv[] )
 
         args.bamin->fetch( reads, i, j );
 
-        if ( merge( args, reads, clusters ) )
+        if ( merge_( args, reads, clusters ) )
             for ( cluster = clusters.begin();
                     cluster->ncontrib >= args.min_reads && cluster != clusters.end();
                     ++cluster ) {

@@ -3,17 +3,33 @@
 #include <map>
 #include <vector>
 
-#include "util.hpp"
+#include "aligned.hpp"
+
 
 #ifndef COVERAGE_H
 #define COVERAGE_H
 
-typedef struct {
-    int col;
-    int ins;
-    std::map< std::vector< char >, int > obs;
-} col_t;
+namespace coverage
+{
+    class elem_t : public std::vector< char >
+    {
+    public:
+        void get_seq( std::string & str ) const;
+    };
 
-void include( std::list< col_t > & cov, const std::vector< triple_t > & read );
+    class cov_t
+    {
+    public:
+        int col;
+        aligned::op_t op;
+        std::map< elem_t, int > obs;
+    };
+
+    class coverage_t : public std::list< cov_t >
+    {
+    public:
+        void include( const aligned::aligned_t & read );
+    };
+}
 
 #endif // COVERAGE_H

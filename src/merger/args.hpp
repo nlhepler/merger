@@ -16,9 +16,9 @@
 class args_t
 {
 public:
-    bamfile_t * bamin;
-    bamfile_t * bamout;
-    bamfile_t * bamdiscard;
+    bamfile::bamfile_t * bamin;
+    bamfile::bamfile_t * bamout;
+    bamfile::bamfile_t * bamdiscard;
     int min_overlap;
     int min_reads;
     bool tol_gaps;

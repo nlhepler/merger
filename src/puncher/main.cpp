@@ -14,11 +14,12 @@
 #include "bamfile.hpp"
 #include "coverage.hpp"
 #include "math.hpp"
-#include "rateclass_em.hpp"
+#include "rateclass.hpp"
 #include "util.hpp"
 
 
 using std::cerr;
+using std::cout;
 using std::endl;
 using std::exp;
 using std::list;
@@ -27,6 +28,13 @@ using std::make_pair;
 using std::map;
 using std::pair;
 using std::vector;
+
+using coverage::col_t;
+using math::prob_background;
+using rateclass::params_json_dump;
+using rateclass::rateclass_t;
+using util::bits2nuc;
+using util::triple_t;
 
 
 typedef list< col_t >::const_iterator cov_citer;
@@ -272,21 +280,6 @@ bam1_t * punchout_read(
 }
 
 
-double prob_background( const double lg_bg, const double lg_invbg, const int cov, const int k )
-{
-    double rv = exp( cov * lg_invbg );
-
-    for ( int i = 1; i < k; ++i )
-        rv += exp( lg_choose( cov, i ) + i * lg_bg + ( cov - i ) * lg_invbg );
-
-    rv = 1.0 - rv;
-
-    // cerr << "cov: " << cov << ", k: " << k << ", prob: " << rv << endl;
-
-    return rv;
-}
-
-
 int main( int argc, const char * argv[] )
 {
     args_t args = args_t( argc, argv );
@@ -308,6 +301,16 @@ int main( int argc, const char * argv[] )
         }
 
         for ( cit = coverage.begin(); cit != coverage.end(); ++cit ) {
+            int cov = 0;
+
+            for ( obs_citer it = cit->obs.begin(); it != cit->obs.end(); ++it )
+                cov += it->second;
+           
+            for ( obs_citer it = cit->obs.begin(); it != cit->obs.end(); ++it )
+                if ( it->second )
+                    data.push_back( make_pair( cov, it->second ) );
+
+#if 0
             obs_citer it = cit->obs.begin();
             int cov = 0, maj;
 
@@ -324,6 +327,7 @@ int main( int argc, const char * argv[] )
             }
 
             data.push_back( make_pair( cov, maj ) );
+#endif
         }
 
         bam_destroy1( in_bam );
@@ -347,6 +351,9 @@ int main( int argc, const char * argv[] )
 
         // determine which variants are above background and those which are not
         for ( cit = coverage.begin(); cit != coverage.end(); ++cit ) {
+            if ( cit->ins )
+                continue;
+
             col_t col = *cit;
             int cov = 0;
 
@@ -354,15 +361,26 @@ int main( int argc, const char * argv[] )
                 cov += it->second;
 
             for ( obs_iter it = col.obs.begin(); it != col.obs.end(); ++it ) {
-                if ( prob_background( lg_bg, lg_invbg, cov, it->second ) < args.cutoff )
+                const double p = prob_background( lg_bg, lg_invbg, cov, it->second );
+                if ( p < args.cutoff ) {
+                    cout << col.col << "\t" << cov << "\t" << it->second;
+                    for ( unsigned i = 0; i < it->first.size(); ++i )
+                        cout << bits2nuc( it->first[ i ] );
+                    cout << ":" << p << endl;
                     it->second = 1;
-                else
+                }
+                else {
                     it->second = 0;
+                }
             }
 
+#if 0
             variants.push_back( col );
+#endif
         }
     }
+
+    return 0;
 
     // write out the input reads, but only with "real" variants this time
     {

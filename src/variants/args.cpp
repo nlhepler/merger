@@ -9,7 +9,6 @@
 
 
 using bamfile::READ;
-using bamfile::WRITE;
 using bamfile::bamfile_t;
 
 
@@ -18,14 +17,13 @@ using bamfile::bamfile_t;
 #define TO_STR(x) STRIFY(x)
 
 const char usage[] =
-    "usage: " EXEC " [-h] [-c CUTOFF]"
-    "(-B BAM_IN BAM_OUT)\n";
+    "usage: " EXEC " [-h] [-c CUTOFF] -B BAM_IN\n";
 
 const char help_msg[] =
     "filter sequencing data using some simple heuristics\n"
     "\n"
     "required arguments:\n"
-    "  -B BAM_IN BAM_OUT        BAM input and output files, respectively\n"
+    "  -B BAM_IN                BAM input file\n"
     "\n"
     "optional arguments:\n"
     "  -h, --help               show this help message and exit\n"
@@ -49,7 +47,6 @@ void help()
 
 args_t::args_t( int argc, const char * argv[] ) :
     bamin( NULL ),
-    bamout( NULL ),
     cutoff( DEFAULT_CUTOFF )
 {
     int i;
@@ -71,10 +68,7 @@ args_t::args_t( int argc, const char * argv[] ) :
         }
         else if ( arg[0] == '-' ) {
             if ( !strcmp( &arg[1], "h" ) ) help();
-            else if ( !strcmp( &arg[1], "B" ) ) {
-                parse_bamfile( argv[i+1], argv[i+2] );
-                i += 2;
-            }
+            else if ( !strcmp( &arg[1], "B" ) ) parse_bamfile( argv[ ++i ] );
             else if ( !strcmp( &arg[1], "c" ) ) parse_cutoff( argv[ ++i ] );
             else
                 ERROR( "unknown argument: %s", arg );
@@ -83,20 +77,18 @@ args_t::args_t( int argc, const char * argv[] ) :
             ERROR( "unknown argument: %s", arg );
     }
 
-    if ( !bamin || !bamout )
-        ERROR( "missing required argument -B BAM_IN BAM_OUT" );
+    if ( !bamin )
+        ERROR( "missing required argument -B BAM_IN" );
 }
 
 args_t::~args_t()
 {
     delete bamin;
-    delete bamout;
 }
 
-void args_t::parse_bamfile( const char * input, const char * output )
+void args_t::parse_bamfile( const char * input )
 {
     bamin = new bamfile_t( input, READ );
-    bamout = new bamfile_t( output, WRITE );
 }
 
 void args_t::parse_cutoff( const char * str )

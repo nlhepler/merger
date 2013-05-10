@@ -20,8 +20,8 @@
 class args_t
 {
 public:
-    bamfile_t * bamin;
-    bamfile_t * bamout;
+    bamfile::bamfile_t * bamin;
+    bamfile::bamfile_t * bamout;
     int min_overlap;
     int min_reads;
     int begin;

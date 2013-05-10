@@ -48,6 +48,7 @@ add_executable(
     merger
     src/merger/main.cpp
     src/merger/args.cpp
+    src/aligned.cpp
     src/bamfile.cpp
     src/merge.cpp
     src/util.cpp
@@ -67,7 +68,7 @@ add_executable(
     src/puncher/args.cpp
     src/bamfile.cpp
     src/coverage.cpp
-    src/rateclass_em.cpp
+    src/rateclass.cpp
     src/util.cpp
     )
 
@@ -82,6 +83,7 @@ add_executable(
     sampler
     src/sampler/main.cpp
     src/sampler/args.cpp
+    src/aligned.cpp
     src/bamfile.cpp
     src/merge.cpp
     src/util.cpp
@@ -94,15 +96,33 @@ set_property(
     APPEND PROPERTY INCLUDE_DIRECTORIES src/sampler
     )
 
+add_executable(
+    variants
+    src/variants/main.cpp
+    src/variants/args.cpp
+    src/aligned.cpp
+    src/bamfile.cpp
+    src/coverage.cpp
+    src/rateclass.cpp
+    src/util.cpp
+    )
+
+target_link_libraries(variants bam pthread m z)
+
 set_property(
-    TARGET merger puncher sampler
+    TARGET variants
+    APPEND PROPERTY INCLUDE_DIRECTORIES src/variants
+    )
+
+set_property(
+    TARGET merger puncher sampler variants
     APPEND PROPERTY INCLUDE_DIRECTORIES external/samtools src
     )
 
 add_executable(
     binmix
     src/binmix/main.cpp
-    src/rateclass_em.cpp
+    src/rateclass.cpp
     )
 
 target_link_libraries(binmix m)

@@ -1,24 +1,43 @@
 
 #include <vector>
 
-#include "args.hpp"
-#include "aligned.h"
+#include "aligned.hpp"
+#include "bamfile.hpp"
 
-enum res_t { SUCCESS, FAILURE, ERROR };
 
-bool ncontrib_cmp( const aligned_t & x, const aligned_t & y );
+#define MERGE_SIZE 128
 
-res_t merge_two(
-    const aligned_t & xs,
-    const aligned_t & ys,
-    const args_t & args,
-    aligned_t & merged
-    );
 
-int merge_clusters(
-    const int nread,
-    const args_t & args,
-    std::vector< aligned_t > & clusters
-    );
+namespace merge
+{
+    bool ncontrib_cmp(
+        const aligned::aligned_t & x,
+        const aligned::aligned_t & y
+        );
 
-void aligned_destroy( aligned_t & read );
+    bool merge_two(
+        const aligned::aligned_t & x,
+        const aligned::aligned_t & y,
+        const int min_overlap,
+        const bool tol_ambigs,
+        const bool tol_gaps,
+        aligned::aligned_t & merged
+        );
+
+    void merge_clusters(
+        const int nread,
+        const int min_overlap,
+        const bool tol_ambigs,
+        const bool tol_gaps,
+        std::vector< aligned::aligned_t > & clusters
+        );
+
+    int merge_reads(
+        bamfile::bamfile_t & bamfile,
+        const int min_reads,
+        const bool tol_ambigs,
+        const bool tol_gaps,
+        const bool discard,
+        std::vector< aligned::aligned_t > & clusters
+        );
+}
