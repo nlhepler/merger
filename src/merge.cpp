@@ -1,7 +1,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <iostream>
 #include <utility>
 
 #include "args.hpp"
@@ -9,8 +8,6 @@
 #include "merge.hpp"
 #include "util.hpp"
 
-using std::cerr;
-using std::endl;
 using std::make_pair;
 using std::pair;
 using std::sort;
@@ -18,6 +15,7 @@ using std::vector;
 
 using aligned::INS;
 using aligned::aligned_t;
+using aligned::op_t;
 using aligned::pos_t;
 using bamfile::bamfile_t;
 using util::bits2nuc;
@@ -38,144 +36,227 @@ using util::bits2nuc;
 
 namespace merge
 {
-    bool ncontrib_cmp( const aligned_t & x, const aligned_t & y )
+    nuc_t::nuc_t( const int col, const op_t op, const char nuc, const char qual, const int cov ) :
+        col( col ),
+        cov( cov ),
+        op( op ),
+        nuc( nuc ),
+        qual( qual )
+    {
+    }
+
+
+    cluster_t::cluster_t() :
+        ncontrib( 0 )
+    {
+    }
+
+
+    cluster_t::cluster_t( const aligned_t & seq ) :
+        ncontrib( seq.ncontrib ? seq.ncontrib : 1 )
+    {
+        aligned_t::const_iterator it;
+        vector< pair< char, char > >::const_iterator jt;
+
+        for ( it = seq.begin(); it != seq.end(); ++it )
+            for ( jt = it->data.begin(); jt != it->data.end(); ++jt )
+                push_back( nuc_t( it->col, it->op, jt->first, jt->second ) );
+    }
+
+
+    int cluster_t::lpos() const
+    {
+        cluster_t::const_iterator it = begin();
+        return ( it == end() ) ? -1: it->col;
+    }
+
+
+    int cluster_t::rpos() const
+    {
+        if ( lpos() < 0 )
+            return -1;
+        return lpos() + size();
+    }
+
+
+    inline
+    int mean( vector< int > & data )
+    {
+        vector< int >::const_iterator it;
+        int sum = 0;
+
+        if ( !data.size() )
+            return 0;
+
+        if ( data.size() == 1 )
+            return data[ 0 ];
+
+        for ( it = data.begin(); it != data.end(); ++it )
+            sum += *it;
+
+        return int( ( 0.5 + sum ) / data.size() );
+    }
+
+
+    aligned_t cluster_t::to_aligned() const
+    {
+        aligned_t cluster;
+        cluster_t::const_iterator it = begin();
+        int col = it->col;
+        op_t op = it->op;
+        vector< int > cov( 1, it->cov );
+        vector< pair< char, char > > data( 1, make_pair( it->nuc, it->qual ) );
+
+        for ( ++it; it != end(); ++it ) {
+            if ( it->col == col && it->op == op ) {
+                cov.push_back( it->cov );
+                data.push_back( make_pair( it->nuc, it->qual ) );
+            }
+            else {
+                cluster.push_back( pos_t( col, op, data, mean( cov ) ) );
+                col = it->col;
+                op = it->op;
+                cov.clear();
+                cov.push_back( it->cov );
+                data.clear();
+                data.push_back( make_pair( it->nuc, it->qual ) );
+            }
+        }
+
+        cluster.push_back( pos_t( col, op, data, mean( cov ) ) );
+
+        cluster.ncontrib = ncontrib;
+
+        return cluster;
+    }
+
+
+    bool ncontrib_cmp( const cluster_t & x, const cluster_t & y )
     {
         return x.ncontrib > y.ncontrib;
     }
 
 
-    bool merge_two(
-        const aligned_t & x,
-        const aligned_t & y,
-        const unsigned min_overlap,
+    cluster_t cluster_t::merge(
+        const cluster_t & other,
+        const int min_overlap,
         const bool tol_ambigs,
-        const bool tol_gaps,
-        aligned_t & merged
-        )
+        const bool tol_gaps
+        ) const
     {
-        aligned_t::const_iterator a = x.begin(), b = y.begin();
-        unsigned overlap = 0;
+        cluster_t::const_iterator i = begin(), j = other.begin();
+        cluster_t m;
+        int overlap = 0;
 
-        merged.clear();
+        if ( i == end() || j == other.end() )
+            return m;
 
-        if ( a == x.end() || b == y.end() )
-            return false;
+        if ( rpos() < other.lpos() + min_overlap && other.rpos() < lpos() + min_overlap )
+            return m;
 
-        if ( a->col < b->col )
-            for ( ; a->col < b->col && a != x.end(); merged.push_back( *( a++ ) ) );
-        else if ( a->col > b->col )
-            for ( ; b->col < a->col && b != x.end(); merged.push_back( *( b++ ) ) );
+        if ( i->col < j->col )
+            for ( ; i->col < j->col && i != end(); m.push_back( *( i++ ) ) );
+        else if ( i->col > j->col )
+            for ( ; j->col < i->col && j != other.end(); m.push_back( *( j++ ) ) );
 
-        while ( a != x.end() || b != y.end() ) {
-            if ( a->col < b->col ) {
+        while ( i != end() && j != other.end() ) {
+            if ( i->col < j->col ) { // && i->col != INS ) {
                 if ( !tol_gaps )
                     goto abort;
-                merged.push_back( *( a++ ) );
+                m.push_back( *( i++ ) );
             }
-            else if ( b->col < a->col ) {
+            else if ( j->col < i->col ) { // && j->col != INS ) {
                 if ( !tol_gaps )
                     goto abort;
-                merged.push_back( *( b++ ) );
+                m.push_back( *( j++ ) );
             }
-            else if ( a->op == b->op ) {
-                vector< pair< char, char > >::const_iterator ap = a->data.begin();
-                vector< pair< char, char > >::const_iterator bp = b->data.begin();
-                vector< pair< char, char > > data;
-
-                for ( ; ap != a->data.end() && bp != b->data.end(); ++ap, ++bp ) {
-                    if ( ap->first == bp->first || ( tol_ambigs && ap->first & bp->first ) ) {
-                        if ( ap->first == bp->first )
-                            ++overlap;
-
-                        data.push_back(
-                            make_pair(
-                                MIN( ap->first, bp->first ),
-                                MAX( ap->second, bp->second )
-                                )
-                            );
-                    }
-                    else
-                        goto abort;
+            else if ( i->op == j->op ) {
+                if ( i->nuc == j->nuc || ( tol_ambigs && i->nuc & j->nuc ) ) {
+                    if ( i->nuc == j->nuc )
+                        ++overlap;
+                    m.push_back(
+                        nuc_t(
+                            i->col, i->op,
+                            MIN( i->nuc, j->nuc ), MAX( i->qual, j->qual ),
+                            i->cov + j->cov
+                            )
+                        );
+                    ++i;
+                    ++j;
                 }
-
-                merged.push_back(
-                    pos_t(
-                        a->col,
-                        a->op,
-                        data,
-                        a->cov + b->cov
-                        )
-                    );
-
-                ++a;
-                ++b;
+                else
+                    goto abort;
             }
-            else if ( a->op == INS ) {
+            else if ( i->op == INS ) {
                 if ( !tol_gaps )
                     goto abort;
-                merged.push_back( *( b++ ) );
+                m.push_back( *( j++ ) );
             }
-            else { // b->op == INS
+            else { // if ( j->op == INS ) {
                 if ( !tol_gaps )
                     goto abort;
-                merged.push_back( *( a++ ) );
+                m.push_back( *( i++ ) );
             }
+#if 0
+            else
+                goto abort;
+#endif
         }
 
         if ( overlap < min_overlap )
             goto abort;
 
-        if ( a != x.end() )
-            for ( ; a != x.end(); merged.push_back( *( a++ ) ) );
-        else if ( b != y.end() )
-            for ( ; b != y.end(); merged.push_back( *( b++ ) ) );
+        if ( i != end() )
+            for ( ; i != end(); m.push_back( *( i++ ) ) );
+        else if ( j != other.end() )
+            for ( ; j != other.end(); m.push_back( *( j++ ) ) );
 
-        if ( !x.ncontrib )
-            ++merged.ncontrib;
-        else
-            merged.ncontrib += x.ncontrib;
+        m.ncontrib = ncontrib + other.ncontrib;
 
-        if ( !y.ncontrib )
-            ++merged.ncontrib;
-        else
-            merged.ncontrib += y.ncontrib;
-
-        return true;
+        return m;
 
 abort:
-        merged.clear();
-        
-        return false;
+        m.clear();
+
+        return m;
     }
 
 
     void merge_clusters(
         const unsigned nread,
-        const unsigned min_overlap,
+        const int min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
-        vector< aligned_t > & clusters
+        vector< cluster_t > & clusters
         )
     {
-        vector< aligned_t >::iterator a, b;
         bool repeat;
 
         do {
             repeat = false;
 
+            fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)", nread, clusters.size() );
+            fflush( stderr );
+
             sort( clusters.begin(), clusters.end(), ncontrib_cmp );
 
-            for ( a = clusters.begin(); a != clusters.end(); ++a ) {
-begin:
-                for ( b = a + 1; b != clusters.end(); ++b ) {
-                    aligned_t merged;
-                    if ( merge_two( *a, *b, min_overlap, tol_ambigs, tol_gaps, merged ) ) {
-                        // replace i and remove j
-                        *a = merged;
-                        clusters.erase( b );
-                        fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)", nread, clusters.size() );
-                        repeat = true;
-                        goto begin;
+            for ( int i = 0; i < int( clusters.size() ); ++i ) {
+                bool stop = false;
+                #pragma omp parallel for default( none ) shared( i, repeat, stop )
+                for ( int j = i + 1; j < int( clusters.size() ); ++j ) {
+                    if ( stop )
+                        continue;
+                    
+                    cluster_t merged = clusters[ i ].merge( clusters[ j ], min_overlap, tol_ambigs, tol_gaps );
+                    if ( merged.size() ) {
+                        #pragma omp critical
+                        if ( !stop ) {
+                            // replace i and remove j
+                            clusters[ i ] = merged;
+                            clusters.erase( clusters.begin() + j );
+                            repeat = stop = true;
+                            #pragma omp flush( stop )
+                        }
                     }
                 }
             }
@@ -183,7 +264,7 @@ begin:
     }
 
 
-    bool aln_cmp( const aligned_t & x, const aligned_t & y )
+    bool aln_cmp( const cluster_t & x, const cluster_t & y )
     {
         if ( x.lpos() < y.lpos() )
             return true;
@@ -195,73 +276,94 @@ begin:
     }
 
 
-    int merge_reads(
+    vector< aligned_t > merge_reads(
         bamfile_t & bamfile,
-        const unsigned min_overlap,
+        const int min_overlap,
         const bool tol_ambigs,
         const bool tol_gaps,
-        const bool discard,
-        vector< aligned_t > & clusters
+        const bool discard
         )
     {
-        vector< aligned_t > discarded;
-        vector< aligned_t >::iterator cluster;
-        unsigned merge_size = MERGE_SIZE, nread = 0;
+        vector< cluster_t >::iterator cluster;
+        vector< cluster_t > clusters;
+        vector< aligned_t > discards, rv;
         bam1_t * const bam = bam_init1();
+        unsigned merge_size = MERGE_SIZE, nread = 1;
 
         if ( !bam )
             goto error;
 
         for ( ; bamfile.next( bam ); ++nread ) {
-            aligned_t read( bam );
+            aligned_t orig( bam );
+            cluster_t read( orig );
+            bool stop = false;
 
-            // if ( nread % 100 == 0 )
-                fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)", nread, clusters.size() );
-                fflush( stderr );
             /*
             if ( nread % 1000 == 0 )
                 sort( clusters.begin(), clusters.end(), ncontrib_cmp );
             */
 
-            if ( read.size() < min_overlap ) {
+            if ( read.size() < unsigned( min_overlap ) ) {
                 if ( !discard )
-                    discarded.push_back( read );
+                    discards.push_back( orig );
                 continue;
             }
 
-            for ( cluster = clusters.begin(); cluster != clusters.end(); ++cluster ) {
-                aligned_t merged;
-                if ( merge_two( *cluster, read, min_overlap, tol_ambigs, tol_gaps, merged ) ) {
-                    *cluster = merged;
-                    if ( clusters.size() > merge_size ) {
-                        merge_clusters( nread, min_overlap, tol_ambigs, tol_gaps, clusters );
-                        merge_size *= 2;
+            #pragma omp parallel for default( none ) shared( clusters, read, stop )
+            for ( int i = 0; i < int( clusters.size() ); ++i ) {
+                if ( stop )
+                    continue;
+
+                cluster_t merged = clusters[ i ].merge( read, min_overlap, tol_ambigs, tol_gaps );
+
+                if ( merged.size() ) {
+                    #pragma omp critical
+                    if ( !stop ) {
+                        clusters[ i ] = merged;
+                        stop = true;
+                        #pragma omp flush( stop )
                     }
-                    goto next;
                 }
             }
-            clusters.push_back( read );
-next:;
+
+            if ( !stop )
+                clusters.push_back( read );
+
+            if ( clusters.size() >= merge_size ) {
+                merge_clusters( nread, min_overlap, tol_ambigs, tol_gaps, clusters );
+                merge_size *= 2;
+            }
+
+            if ( ( nread ) % 100 == 0 ) {
+                fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)", nread, clusters.size() );
+                fflush( stderr );
+            }
         }
 
         merge_clusters( nread, min_overlap, tol_ambigs, tol_gaps, clusters );
 
         fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)\n", nread, clusters.size() );
+        fflush( stderr );
 
         sort( clusters.begin(), clusters.end(), aln_cmp );
 
-        if ( !discard ) {
-            clusters.reserve( clusters.size() + discarded.size() );
-            clusters.insert( clusters.end(), discarded.begin(), discarded.end() );
-        }
+        rv.reserve( clusters.size() + discards.size() );
+
+        for ( cluster = clusters.begin(); cluster != clusters.end(); ++cluster )
+            rv.push_back( cluster->to_aligned() );
+
+        if ( !discard )
+            clusters.insert( clusters.end(), discards.begin(), discards.end() );
 
         bam_destroy1( bam );
 
-        return clusters.size();
+        return rv;
 
     error:
+        rv.clear();
+
         bam_destroy1( bam );
 
-        return -1;
+        return rv;
     }
 }

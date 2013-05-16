@@ -76,9 +76,9 @@ namespace bamfile
     }
 
 
-    void bamfile_t::fetch( vector< aligned_t > & reads, int begin, int end, int tid )
+    void bamfile_t::fetch( vector< aligned_t > & reads, const int begin, const int end, const int tid )
     {
-        fetch_t data = { .begin = begin, .end = end, .reads = reads };
+        fetch_t data = { begin, end, reads };
 
         if ( !idx ) {
             cerr << "BAM index not found" << endl;

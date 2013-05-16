@@ -1,7 +1,7 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <list>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -11,7 +11,8 @@
 #include "util.hpp"
 
 
-using std::list;
+using std::cerr;
+using std::endl;
 using std::make_pair;
 using std::pair;
 using std::string;
@@ -36,6 +37,12 @@ namespace aligned
     }
 
 
+    unsigned pos_t::size() const
+    {
+        return data.size();
+    }
+
+
     void pos_t::get_qual( char * qual ) const
     {
         vector< pair< char, char > >::const_iterator it;
@@ -54,25 +61,29 @@ namespace aligned
     }
 
 
-    void pos_t::get_seq( string & str ) const
+#if 0
+    string pos_t::get_seq() const
     {
         vector< pair< char, char > >::const_iterator it;
-
-        str.clear();
+        string str;
 
         for ( it = data.begin(); it != data.end(); ++it )
             str.push_back( bits2nuc( it->first ) );
+
+        return str;
     }
+#endif
 
 
-    void pos_t::get_seq( vector< char > & vec ) const
+    vector< char > pos_t::get_seq() const
     {
         vector< pair< char, char > >::const_iterator it;
-
-        vec.clear();
+        vector< char > vec;
 
         for ( it = data.begin(); it != data.end(); ++it )
             vec.push_back( it->first );
+
+        return vec;
     }
 
 
@@ -84,19 +95,19 @@ namespace aligned
 
 
     aligned_t::aligned_t() :
-        list< pos_t >(),
+        vector< pos_t >(),
         tid( 0 ),
         qual( 0xFF ),
-        flag(  0 ),
+        flag( 0 ),
         mtid( -1 ),
         mpos( -1 ),
         isize( 0 ),
         ncontrib( 1 )
-    { 
+    {
     }
 
     aligned_t::aligned_t( const bam1_t * const bam ) :
-        list< pos_t >(),
+        vector< pos_t >(),
         tid( bam->core.tid ),
         qual( bam->core.qual ),
         flag( bam->core.flag ),
@@ -152,7 +163,7 @@ namespace aligned
                     );
             }
             else {
-                // TODO: print a warning
+                cerr << "unhandled CIGAR operation encountered" << endl;
                 col += nop;
             }
         }
@@ -161,15 +172,22 @@ namespace aligned
 
     int aligned_t::lpos() const
     {
-        list< pos_t >::const_iterator it = begin();
+        aligned_t::const_iterator it = begin();
         return ( it == end() ) ? -1: it->col;
     }
 
 
     int aligned_t::rpos() const
     {
-        list< pos_t >::const_reverse_iterator it = rbegin();
+        aligned_t::const_reverse_iterator it = rbegin();
         return ( it == rend() ) ? -1 : it->col;
+    }
+
+
+    inline
+    aligned_t::const_iterator prev( aligned_t::const_iterator & it )
+    {
+        return ( --it )++;
     }
 
 
@@ -177,7 +195,7 @@ namespace aligned
     aligned_t::to_bam( bam1_t * const bam ) const
     {
         aligned_t::const_iterator it;
-        int n_cigar, cig_idx, seq_idx, nop;
+        int n_cigar, seq_len, cig_idx, seq_idx, nop;
         op_t op;
 
         if ( !size() )
@@ -205,23 +223,35 @@ namespace aligned
 
         it = begin();
         n_cigar = 0;
+        seq_len = 0;
         op = it->op;
 
-        for ( ++it; it != end(); ++it )
-            if ( ( --it++ )->col + 1 < it->col ) {
-                ++n_cigar; // for being different
+        for ( ++it; it != end(); ++it ) {
+            if ( prev( it )->col + 1 < it->col ) {
+                ++n_cigar; // for the last op
                 ++n_cigar; // for being a deletion
                 op = it->op;
             }
-            if ( it->op != op ) {
+            else if ( it->op != op ) {
                 ++n_cigar;
                 op = it->op;
             }
+            seq_len += it->size();
+        }
 
         ++n_cigar; // for the last op
 
+        bam->core.l_qname = name.size() + 1;
+        bam->core.l_qseq = seq_len;
+        bam->core.n_cigar = n_cigar;
         bam->l_aux = 0;
-        bam->data_len = name.size() + 4 * n_cigar + ( size() + 1 ) / 2 + size() + bam->l_aux;
+        bam->data_len = (
+                bam->core.l_qname +
+                4 * bam->core.n_cigar +
+                ( bam->core.l_qseq + 1 ) / 2 +
+                bam->core.l_qseq +
+                bam->l_aux
+                );
         bam->m_data = bam->data_len;
         kroundup32( bam->m_data );
         bam->data = reinterpret_cast< uint8_t * >( calloc( bam->m_data, sizeof( uint8_t ) ) );
@@ -229,7 +259,7 @@ namespace aligned
         if ( !bam->data )
             goto error;
 
-        memcpy( bam1_qname( bam ), name.c_str(), name.size() + 1 );
+        memcpy( bam1_qname( bam ), name.c_str(), bam->core.l_qname );
 
         cig_idx = 0;
         seq_idx = 0;
@@ -241,9 +271,9 @@ namespace aligned
         for ( ++it; it != end(); ++it ) {
             vector< pair< char, char > >::const_iterator pit;
 
-            if ( ( --it++ )->col + 1 < it->col ) {
+            if ( prev( it )->col + 1 < it->col ) {
                 bam1_cigar( bam )[ cig_idx++ ] = cigval( op, nop );
-                bam1_cigar( bam )[ cig_idx++ ] = cigval( DEL, it->col - ( --it++ )->col - 1 );
+                bam1_cigar( bam )[ cig_idx++ ] = cigval( DEL, it->col - prev( it )->col - 1 );
                 nop = 1;
                 op = it->op;
             }
@@ -266,12 +296,12 @@ namespace aligned
         bam1_cigar( bam )[ cig_idx++ ] = cigval( op, nop );
 
         if ( cig_idx != n_cigar ) {
-            // TODO: raise an error here
+            cerr << "something broke while assembling the CIGAR string" << endl;
             goto error;
         }
 
         if ( !bam_validate1( NULL, bam ) ) {
-            // TODO: issue an error here
+            cerr << "BAM record failed validation" << endl;
             goto error;
         }
 
@@ -282,5 +312,17 @@ error:
         memset( bam, '\0', sizeof( bam1_t ) );
 
         return false;
+    }
+
+    vector< pos_t > aligned_t::to_vector() const
+    {
+        aligned_t::const_iterator it;
+        vector< pos_t > vec;
+
+        for ( it = begin(); it != end(); ++it ) {
+            vec.push_back( *it );
+        }
+
+        return vec;
     }
 }

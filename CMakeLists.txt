@@ -1,19 +1,25 @@
 cmake_minimum_required(VERSION 2.8)
-project(merger)
 
 # set(CMAKE_C_COMPILER "gcc-4.7")
 # set(CMAKE_CXX_COMPILER "g++-4.7")
+set(CMAKE_C_COMPILER "gcc")
+set(CMAKE_CXX_COMPILER "g++")
 # set(CMAKE_EXE_LINKER_FLAGS "-g -pg -Wall")
+
+project(merger)
+
 set(INSTALL_PREFIX /usr/local CACHE PATH "Installation prefix")
 set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" FORCE)
 
 set(CMAKE_BUILD_TYPE DEBUG)
 # set(CMAKE_BUILD_TYPE RELEASE)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g -pg -Wall -Werror")
-set(CMAKE_C_FLAGS_DEBUG "-O3 -g -pg -Wall")
+set(COMMON_CXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror")
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g -pg ${COMMON_CXX_FLAGS}")
+set(CMAKE_C_FLAGS_DEBUG "-O3 -g -pg -Wall") 
+
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${COMMON_CXX_FLAGS}") 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall")
 
 add_library(
@@ -138,3 +144,16 @@ install(
 	RUNTIME DESTINATION bin
 	OPTIONAL
     )
+
+find_package(OpenMP)
+
+if (${OPENMP_FOUND})
+    set_property(
+        TARGET merger
+        APPEND PROPERTY COMPILE_FLAGS "${OpenMP_CXX_FLAGS}"
+    )
+    set_property(
+        TARGET merger
+        APPEND PROPERTY LINK_FLAGS "${OpenMP_CXX_FLAGS}"
+        )
+endif (${OPENMP_FOUND})

@@ -1,5 +1,4 @@
 
-#include <list>
 #include <vector>
 #include <string>
 #include <utility>
@@ -35,14 +34,18 @@ namespace aligned
             const int cov = 1
             );
 
+        unsigned size() const;
+
         void get_qual( char * qual ) const;
-        void get_seq( char * str ) const;
-        void get_seq( std::string & str ) const;
-        void get_seq( std::vector< char > & vec ) const;
+        void get_seq( char * seq ) const;
+#if 0 
+        std::string get_seq() const;
+#endif
+        std::vector< char > get_seq() const;
     };
 
 
-    class aligned_t : public std::list< pos_t >
+    class aligned_t : public std::vector< pos_t >
     {
     private:
         int tid;
@@ -64,6 +67,7 @@ namespace aligned
         int rpos() const;
 
         bool to_bam( bam1_t * const bam ) const;
+        std::vector< pos_t > to_vector() const;
     };
 }
 

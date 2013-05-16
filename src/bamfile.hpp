@@ -28,9 +28,9 @@ namespace bamfile
         bool next( bam1_t * const aln );
         void fetch(
                 std::vector< aligned::aligned_t > & reads,
-                int begin,
-                int end,
-                int tid = 0
+                const int begin,
+                const int end,
+                const int tid = 0
                 );
         bool seek0();
         bool write_header( const bam_header_t * hdr_ = NULL );
