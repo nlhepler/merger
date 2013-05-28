@@ -38,10 +38,8 @@ namespace aligned
 
         void get_qual( char * qual ) const;
         void get_seq( char * seq ) const;
-#if 0 
-        std::string get_seq() const;
-#endif
-        std::vector< char > get_seq() const;
+        void get_seq( std::string & str ) const;
+        void get_seq( std::vector< char > & vec ) const;
     };
 
 

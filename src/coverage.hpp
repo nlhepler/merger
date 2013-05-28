@@ -23,6 +23,8 @@ namespace coverage
         int col;
         aligned::op_t op;
         std::map< elem_t, int > obs;
+
+        cov_t( const int col, const aligned::op_t op );
     };
 
     class coverage_t : public std::list< cov_t >

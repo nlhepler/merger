@@ -61,29 +61,25 @@ namespace aligned
     }
 
 
-#if 0
-    string pos_t::get_seq() const
+    void pos_t::get_seq( string & str ) const
     {
         vector< pair< char, char > >::const_iterator it;
-        string str;
+
+        str.clear();
 
         for ( it = data.begin(); it != data.end(); ++it )
             str.push_back( bits2nuc( it->first ) );
-
-        return str;
     }
-#endif
 
 
-    vector< char > pos_t::get_seq() const
+    void pos_t::get_seq( vector< char > & vec ) const
     {
         vector< pair< char, char > >::const_iterator it;
-        vector< char > vec;
+
+        vec.clear();
 
         for ( it = data.begin(); it != data.end(); ++it )
             vec.push_back( it->first );
-
-        return vec;
     }
 
 

@@ -72,7 +72,7 @@ namespace rateclass
     double lg_binomial(
             const int cov,
             const int maj,
-            const double * lg_params // weight, rate, inv_rate
+            const double * const lg_params // weight, rate, inv_rate
             )
     {
         double rv = lg_params[ 0 ] + maj * lg_params[ 1 ] + ( cov - maj ) * lg_params[ 2 ];
@@ -97,7 +97,8 @@ namespace rateclass
             lg_params[ 3 * i + 2 ] = log( 1.0 - params[ i ].second );
         }
 
-        for ( unsigned i = 0; i < data.size(); ++i ) {
+        #pragma omp parallel for
+        for ( int i = 0; i < int( data.size() ); ++i ) {
             const int cov = data[ i ].first, maj = data[ i ].second;
             double buf[ params.size() ];
             double max = lg_binomial( cov, maj, &lg_params[ 0 ] );
@@ -119,10 +120,13 @@ namespace rateclass
             for ( unsigned j = 0; j < params.size(); ++j )
                 pij[ i * params.size() + j ] = buf[ j ] / sum;
 
-            lg_L += log( sum ) + max;
+            #pragma omp critical
+            {
+                lg_L += log( sum ) + max;
 
-            if ( include_constant )
-                lg_L += lg_choose( cov, maj );
+                if ( include_constant )
+                    lg_L += lg_choose( cov, maj );
+            }
         }
 
         return lg_L;

@@ -5,6 +5,7 @@
 
 #include "aligned.hpp"
 #include "coverage.hpp"
+#include "util.hpp"
 
 
 using std::list;
@@ -14,6 +15,8 @@ using std::vector;
 
 using aligned::INS;
 using aligned::aligned_t;
+using aligned::op_t;
+using util::bits2nuc;
 
 
 namespace coverage
@@ -25,16 +28,22 @@ namespace coverage
         str.clear();
 
         for ( it = begin(); it != end(); ++it )
-            str.push_back( *it );
+            str.push_back( bits2nuc( *it ) );
+    }
+
+    cov_t::cov_t( const int col, const op_t op ) :
+        col( col ),
+        op( op )
+    {
     }
 
     void coverage_t::include( const aligned_t & read )
     {
         iterator cit = begin();
         aligned_t::const_iterator rit = read.begin();
-        elem_t elem;
-
         for ( ; cit != end() && rit != read.end(); ) {
+            elem_t elem;
+
             if ( cit->col == rit->col && cit->op == rit->op ) {
                 rit->get_seq( elem );
                 map< elem_t, int >::iterator mit = cit->obs.find( elem );
@@ -49,8 +58,8 @@ namespace coverage
                 ++cit;
             }
             else if ( cit->col == rit->col && rit->op == INS ) {
-                cov_t cov = { .col = rit->col, .op = INS };
-
+                cov_t cov( rit->col, INS );
+                
                 ++cit;
 
                 // we cover this case above
@@ -66,7 +75,7 @@ namespace coverage
                 ++rit;
             }
             else if ( rit->col < cit->col ) {
-                cov_t cov = { .col = rit->col, .op = rit->op };
+                cov_t cov( rit->col, rit->op );
 
                 rit->get_seq( elem );
                 cov.obs[ elem ] = 1;
@@ -82,7 +91,9 @@ namespace coverage
         }
 
         for ( ; rit != read.end(); ++rit ) {
-            cov_t cov = { .col = rit->col, .op = rit->op };
+            elem_t elem;
+
+            cov_t cov( rit->col, rit->op );
 
             rit->get_seq( elem );
             cov.obs[ elem ] = 1;

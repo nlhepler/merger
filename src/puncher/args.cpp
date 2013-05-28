@@ -18,7 +18,7 @@ using bamfile::bamfile_t;
 #define TO_STR(x) STRIFY(x)
 
 const char usage[] =
-    "usage: " EXEC " [-h] [-c CUTOFF]"
+    "usage: " EXEC " [-h] [-c CUTOFF] "
     "(-B BAM_IN BAM_OUT)\n";
 
 const char help_msg[] =

@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 2.8)
 
 # set(CMAKE_C_COMPILER "gcc-4.7")
 # set(CMAKE_CXX_COMPILER "g++-4.7")
-set(CMAKE_C_COMPILER "gcc")
-set(CMAKE_CXX_COMPILER "g++")
 # set(CMAKE_EXE_LINKER_FLAGS "-g -pg -Wall")
 
 project(merger)
@@ -17,9 +15,9 @@ set(CMAKE_BUILD_TYPE DEBUG)
 set(COMMON_CXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g -pg ${COMMON_CXX_FLAGS}")
-set(CMAKE_C_FLAGS_DEBUG "-O3 -g -pg -Wall") 
+set(CMAKE_C_FLAGS_DEBUG "-O3 -g -pg -Wall")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${COMMON_CXX_FLAGS}") 
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${COMMON_CXX_FLAGS}")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall")
 
 add_library(
@@ -48,7 +46,7 @@ add_library(
 
 set_property(
     TARGET bam
-    PROPERTY COMPILE_DEFINITIONS _FILE_OFFSET_BITS=64 _LARGEFILE64_SOURCE _USE_KNETFILE _CURSES_LIB=1 
+    PROPERTY COMPILE_DEFINITIONS _FILE_OFFSET_BITS=64 _LARGEFILE64_SOURCE _USE_KNETFILE _CURSES_LIB=1
     )
 
 add_executable(
@@ -73,6 +71,7 @@ add_executable(
     puncher
     src/puncher/main.cpp
     src/puncher/args.cpp
+    src/aligned.cpp
     src/bamfile.cpp
     src/coverage.cpp
     src/rateclass.cpp
@@ -86,22 +85,22 @@ set_property(
     APPEND PROPERTY INCLUDE_DIRECTORIES src/puncher
     )
 
-add_executable(
-    sampler
-    src/sampler/main.cpp
-    src/sampler/args.cpp
-    src/aligned.cpp
-    src/bamfile.cpp
-    src/merge.cpp
-    src/util.cpp
-    )
-
-target_link_libraries(sampler bam pthread m z)
-
-set_property(
-    TARGET sampler
-    APPEND PROPERTY INCLUDE_DIRECTORIES src/sampler
-    )
+# add_executable(
+#     sampler
+#     src/sampler/main.cpp
+#     src/sampler/args.cpp
+#     src/aligned.cpp
+#     src/bamfile.cpp
+#     src/merge.cpp
+#     src/util.cpp
+#     )
+#
+# target_link_libraries(sampler bam pthread m z)
+#
+# set_property(
+#     TARGET sampler
+#     APPEND PROPERTY INCLUDE_DIRECTORIES src/sampler
+#     )
 
 add_executable(
     variants
@@ -122,7 +121,7 @@ set_property(
     )
 
 set_property(
-    TARGET merger puncher sampler variants
+    TARGET merger puncher variants # sampler variants
     APPEND PROPERTY INCLUDE_DIRECTORIES external/samtools src
     )
 
@@ -140,20 +139,22 @@ set_property(
     )
 
 install(
-    TARGETS merger sampler
+    TARGETS merger puncher variants # sampler variants
 	RUNTIME DESTINATION bin
 	OPTIONAL
     )
 
-find_package(OpenMP)
+if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUXX)
+    find_package(OpenMP)
 
-if (${OPENMP_FOUND})
-    set_property(
-        TARGET merger
-        APPEND PROPERTY COMPILE_FLAGS "${OpenMP_CXX_FLAGS}"
-    )
-    set_property(
-        TARGET merger
-        APPEND PROPERTY LINK_FLAGS "${OpenMP_CXX_FLAGS}"
+    if (${OPENMP_FOUND})
+        set_property(
+            TARGET binmix merger puncher variants
+            APPEND PROPERTY COMPILE_FLAGS "${OpenMP_CXX_FLAGS}"
         )
-endif (${OPENMP_FOUND})
+        set_property(
+            TARGET binmix merger puncher variants
+            APPEND PROPERTY LINK_FLAGS "${OpenMP_CXX_FLAGS}"
+            )
+    endif (${OPENMP_FOUND})
+endif (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUXX)

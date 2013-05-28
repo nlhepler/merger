@@ -9,7 +9,7 @@
 
 #include "bam.h"
 
-#include "aligned.h"
+#include "aligned.hpp"
 #include "args.hpp"
 #include "bamfile.hpp"
 #include "coverage.hpp"
@@ -29,19 +29,22 @@ using std::map;
 using std::pair;
 using std::vector;
 
-using coverage::col_t;
+using aligned::INS;
+using aligned::aligned_t;
+using coverage::cov_t;
+using coverage::coverage_t;
+using coverage::elem_t;
 using math::prob_background;
 using rateclass::params_json_dump;
 using rateclass::rateclass_t;
 using util::bits2nuc;
-using util::triple_t;
 
 
-typedef list< col_t >::const_iterator cov_citer;
-typedef map< vector< char >, int >::const_iterator obs_citer;
-typedef map< vector< char >, int >::iterator obs_iter;
-typedef vector< col_t >::const_iterator var_citer;
-typedef vector< triple_t >::const_iterator read_citer;
+typedef list< cov_t >::const_iterator cov_citer;
+typedef list< cov_t >::iterator cov_iter;
+typedef map< elem_t, int >::const_iterator obs_citer;
+typedef map< elem_t, int >::iterator obs_iter;
+typedef vector< cov_t >::const_iterator var_citer;
 
 
 inline
@@ -68,11 +71,11 @@ void realloc_data( bam1_t * const bam )
 
 bam1_t * punchout_read(
         const bam1_t * const in_bam,
-        const vector< col_t > & variants,
-        const vector< triple_t > & read
+        const vector< cov_t > & variants,
+        const aligned_t & read
         )
 {
-    read_citer rit = read.begin();
+    aligned_t::const_iterator rit = read.begin();
     var_citer vit = variants.begin();
     vector< pair< bool, unsigned > > keep;
     vector< int > cols;
@@ -92,15 +95,19 @@ bam1_t * punchout_read(
     for ( ; rit != read.end() && vit != variants.end(); ) {
 
 #if 0
-        cerr << "r: ( " << rit->col << ", " << rit->ins << ", ";
+        cerr << "r: ( " << rit->col << ", " << rit->op == INS << ", ";
         for ( unsigned j = 0; j < rit->elem.size(); ++j )
             cerr << bits2nuc( rit->elem[ j ] );
         cerr << " )" << endl;
-        cerr << "v: ( " << vit->col << ", " << vit->ins << " )" << endl;
+        cerr << "v: ( " << vit->col << ", " << vit->op == INS << " )" << endl;
 #endif
 
-        if ( rit->col == vit->col && rit->ins == vit->ins ) {
-            obs_citer it = vit->obs.find( rit->elem );
+        if ( rit->col == vit->col && rit->op == vit->op ) {
+            elem_t elem;
+            obs_citer it;
+
+            rit->get_seq( elem );
+            it = vit->obs.find( elem );
 
             if ( it == vit->obs.end() ) {
                 cerr << "unknown variant observed, which is weird...( 1 )" << endl;
@@ -119,12 +126,12 @@ bam1_t * punchout_read(
             ++vit;
         }
         // matching column in variants, but insertion in read
-        else if ( rit->col == vit->col && rit->ins ) {
+        else if ( rit->col == vit->col && rit->op == INS ) {
             ++vit;
         }
         // matching column in read, but insertion in variants:
         // we got ahead in read somehow, which should never happen
-        else if ( rit->col == vit->col && vit->ins ) {
+        else if ( rit->col == vit->col && vit->op == INS ) {
             cerr << "unknown variant observed, which is weird...( 2 )" << endl;
             exit( 1 );
         }
@@ -283,21 +290,18 @@ bam1_t * punchout_read(
 int main( int argc, const char * argv[] )
 {
     args_t args = args_t( argc, argv );
-    cov_citer cit;
-    list< col_t > coverage;
-    vector< col_t > variants;
+    coverage_t coverage;
+    vector< cov_t > variants;
     vector< pair< int, int > > data;
 
     // accumulate the data at each position in a linked list
     {
+        cov_citer cit;
         bam1_t * in_bam = bam_init1();
 
         while ( args.bamin->next( in_bam ) ) {
-            vector< triple_t > read;
-
-            bam2vec( in_bam, read );
-
-            include( coverage, read );
+            aligned_t read( in_bam );
+            coverage.include( read );
         }
 
         for ( cit = coverage.begin(); cit != coverage.end(); ++cit ) {
@@ -335,6 +339,7 @@ int main( int argc, const char * argv[] )
 
     // learn a joint multi-binomial model for the mutation rate classes
     {
+        cov_iter cit;
         double lg_L, aicc, bg, lg_bg, lg_invbg;
         rateclass_t rc( data );
         vector< pair< double, double > > params;
@@ -351,19 +356,18 @@ int main( int argc, const char * argv[] )
 
         // determine which variants are above background and those which are not
         for ( cit = coverage.begin(); cit != coverage.end(); ++cit ) {
-            if ( cit->ins )
+            if ( cit->op == INS )
                 continue;
 
-            col_t col = *cit;
             int cov = 0;
 
-            for ( obs_citer it = col.obs.begin(); it != col.obs.end(); ++it )
+            for ( obs_citer it = cit->obs.begin(); it != cit->obs.end(); ++it )
                 cov += it->second;
 
-            for ( obs_iter it = col.obs.begin(); it != col.obs.end(); ++it ) {
+            for ( obs_iter it = cit->obs.begin(); it != cit->obs.end(); ++it ) {
                 const double p = prob_background( lg_bg, lg_invbg, cov, it->second );
                 if ( p < args.cutoff ) {
-                    cout << col.col << "\t" << cov << "\t" << it->second;
+                    cout << cit->col << "\t" << cov << "\t" << it->second;
                     for ( unsigned i = 0; i < it->first.size(); ++i )
                         cout << bits2nuc( it->first[ i ] );
                     cout << ":" << p << endl;
@@ -375,7 +379,7 @@ int main( int argc, const char * argv[] )
             }
 
 #if 0
-            variants.push_back( col );
+            variants.push_back( *cit );
 #endif
         }
     }
@@ -397,9 +401,7 @@ int main( int argc, const char * argv[] )
         }
 
         while ( args.bamin->next( in_bam ) ) {
-            vector< triple_t > read;
-
-            bam2vec( in_bam, read );
+            aligned_t read( in_bam );
 
             bam1_t * const out_bam = punchout_read( in_bam, variants, read );
 
