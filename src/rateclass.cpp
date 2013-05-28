@@ -89,6 +89,7 @@ namespace rateclass
             )
     {
         double lg_params[ 3 * params.size() ], lg_L = 0.0;
+        double * lg_Ls = new double[ data.size() ];
 
         // precompute log-params
         for ( unsigned i = 0; i < params.size(); ++i ) {
@@ -120,14 +121,16 @@ namespace rateclass
             for ( unsigned j = 0; j < params.size(); ++j )
                 pij[ i * params.size() + j ] = buf[ j ] / sum;
 
-            #pragma omp critical
-            {
-                lg_L += log( sum ) + max;
+            lg_Ls[ i ] = log( sum ) + max;
 
-                if ( include_constant )
-                    lg_L += lg_choose( cov, maj );
-            }
+            if ( include_constant )
+                lg_Ls[ i ] += lg_choose( cov, maj );
         }
+
+        for ( unsigned i = 0; i < data.size(); ++i )
+            lg_L += lg_Ls[ i ];
+
+        delete [] lg_Ls; 
 
         return lg_L;
     }

@@ -242,7 +242,7 @@ abort:
 
             for ( int i = 0; i < int( clusters.size() ); ++i ) {
                 bool stop = false;
-                #pragma omp parallel for default( none ) shared( i, repeat, stop )
+                #pragma omp parallel for
                 for ( int j = i + 1; j < int( clusters.size() ); ++j ) {
                     if ( stop )
                         continue;
@@ -309,7 +309,7 @@ abort:
                 continue;
             }
 
-            #pragma omp parallel for default( none ) shared( clusters, read, stop )
+            #pragma omp parallel for
             for ( int i = 0; i < int( clusters.size() ); ++i ) {
                 if ( stop )
                     continue;
