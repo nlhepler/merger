@@ -16,7 +16,6 @@ namespace bamfile
     {
     private:
         bamFile fp;
-        bam1_t * buf;
         bam_index_t * idx;
         long zero;
 
@@ -25,7 +24,7 @@ namespace bamfile
 
         bamfile_t( const char * path, bam_mode_t mode = READ, bool index = false );
         ~bamfile_t();
-        bool next( bam1_t * const aln );
+        bool next( bam1_t * const bam );
         void fetch(
                 std::vector< aligned::aligned_t > & reads,
                 const int begin,

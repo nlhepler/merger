@@ -334,7 +334,7 @@ abort:
                 merge_size *= 2;
             }
 
-            if ( ( nread ) % 100 == 0 ) {
+            if ( nread % 100 == 0 ) {
                 fprintf( stderr, "\rprocessed: %9u reads (%6lu clusters)", nread, clusters.size() );
                 fflush( stderr );
             }

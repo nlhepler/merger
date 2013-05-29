@@ -53,6 +53,8 @@ int main( int argc, const char * argv[] )
         coverage.include( read );
     }
 
+    bam_destroy1( in_bam );
+    
     for ( cit = coverage.begin(); cit != coverage.end(); ++cit ) {
         map< elem_t, int >::const_iterator it;
 
@@ -144,8 +146,6 @@ int main( int argc, const char * argv[] )
 
         fflush( stdout );
     }
-
-    bam_destroy1( in_bam );
 
     return 0;
 }

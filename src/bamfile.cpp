@@ -22,7 +22,6 @@ namespace bamfile
 {
     bamfile_t::bamfile_t( const char * path, bam_mode_t mode, bool index ) :
         fp( NULL ),
-        buf( NULL ),
         idx( NULL ),
         hdr( NULL )
     {
@@ -42,14 +41,11 @@ namespace bamfile
         }
 
         hdr = ( mode == READ ) ? bam_header_read( fp ) : bam_header_init();
-        buf = bam_init1();
         zero = bam_tell( fp );
     }
 
     bamfile_t::~bamfile_t()
     {
-        if ( buf != NULL )
-            bam_destroy1( buf );
         if ( hdr != NULL )
             bam_header_destroy( hdr );
         if ( idx != NULL )
@@ -89,12 +85,12 @@ namespace bamfile
     }
 
 
-    bool bamfile_t::next( bam1_t * const aln )
+    bool bamfile_t::next( bam1_t * const bam )
     {
         if ( fp->is_write )
             return false;
 
-        if ( bam_read1( fp, aln ) >= 0 )
+        if ( bam_read1( fp, bam ) >= 0 )
             return true;
 
         return false;
