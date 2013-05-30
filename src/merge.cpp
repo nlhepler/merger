@@ -59,7 +59,7 @@ namespace merge
         vector< pair< char, char > >::const_iterator jt;
 
         for ( it = seq.begin(); it != seq.end(); ++it )
-            for ( jt = it->data.begin(); jt != it->data.end(); ++jt )
+            for ( jt = it->begin(); jt != it->end(); ++jt )
                 push_back( nuc_t( it->col, it->op, jt->first, jt->second ) );
     }
 

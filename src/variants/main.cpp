@@ -139,9 +139,7 @@ int main( int argc, const char * argv[] )
             fprintf( stdout, "%d\t%s\t%d\t", cit->col + 1, css.c_str(), cov );
 
             it->first.get_seq( elem );
-            fprintf( stdout, "%s", elem.c_str() );
-
-            fprintf( stdout, ":%d:%.3e\n", it->second, prob );
+            fprintf( stdout, "%s:%d:%.3e\n", elem.c_str(), it->second, prob );
         }
 
         fflush( stdout );

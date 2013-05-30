@@ -23,7 +23,7 @@ namespace coverage
 {
     void elem_t::get_seq( string & str ) const
     {
-        vector< char >::const_iterator it;
+        elem_t::const_iterator it;
 
         str.clear();
 

@@ -19,22 +19,25 @@ namespace aligned
         DIFF = BAM_CDIFF
     };
 
-    class pos_t
+    class pos_t : public std::vector< std::pair< char, char > >
     {
     public:
         int col;
         int cov;
         op_t op;
-        std::vector< std::pair< char, char > > data;
 
         pos_t(
             const int col,
             const op_t op,
-            const std::vector< std::pair< char, char > > data,
             const int cov = 1
             );
 
-        unsigned size() const;
+        pos_t(
+            const int col,
+            const op_t op,
+            std::vector< std::pair< char, char > > data,
+            const int cov = 1
+            );
 
         void get_qual( char * qual ) const;
         void get_seq( char * seq ) const;

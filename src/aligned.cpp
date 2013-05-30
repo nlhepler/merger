@@ -26,59 +26,65 @@ namespace aligned
     pos_t::pos_t(
             const int col,
             const op_t op,
-            const vector< pair< char, char > > data,
             const int cov
             ) :
         col( col ),
         cov( cov ),
-        op( op ),
-        data( data )
+        op( op )
     {
     }
 
 
-    unsigned pos_t::size() const
+    pos_t::pos_t(
+            const int col,
+            const op_t op,
+            const vector< pair< char, char > > data,
+            const int cov
+            ) :
+        vector< pair< char, char > >( data ),
+        col( col ),
+        cov( cov ),
+        op( op )
     {
-        return data.size();
     }
 
 
     void pos_t::get_qual( char * qual ) const
     {
-        vector< pair< char, char > >::const_iterator it;
+        pos_t::const_iterator it;
 
-        for ( it = data.begin(); it != data.end(); ++it )
+        for ( it = begin(); it != end(); ++it )
             *( qual++ ) = it->second;
     }
 
 
     void pos_t::get_seq( char * str ) const
     {
-        vector< pair< char, char > >::const_iterator it;
+        pos_t::const_iterator it;
 
-        for ( it = data.begin(); it != data.end(); ++it )
+        for ( it = begin(); it != end(); ++it )
             *( str++ ) = it->first;
     }
 
 
     void pos_t::get_seq( string & str ) const
     {
-        vector< pair< char, char > >::const_iterator it;
+        pos_t::const_iterator it;
 
         str.clear();
 
-        for ( it = data.begin(); it != data.end(); ++it )
+        for ( it = begin(); it != end(); ++it )
             str.push_back( bits2nuc( it->first ) );
     }
 
 
     void pos_t::get_seq( vector< char > & vec ) const
     {
-        vector< pair< char, char > >::const_iterator it;
+        pos_t::const_iterator it;
 
         vec.clear();
 
-        for ( it = data.begin(); it != data.end(); ++it )
+        for ( it = begin(); it != end(); ++it )
             vec.push_back( it->first );
     }
 
@@ -124,39 +130,31 @@ namespace aligned
                 col += nop;
             }
             else if ( op == BAM_CMATCH || op == BAM_CEQUAL || op == BAM_CDIFF ) {
-                for ( int j = 0; j < nop; ++j, ++idx )
-                    push_back(
-                        pos_t(
-                            ++col,
-                            op_t( op ),
-                            vector< pair< char, char > >(
-                                1,
-                                make_pair(
-                                    bam1_seqi( bam1_seq( bam ), idx ),
-                                    has_quals ? bam1_qual( bam )[ idx ] : 0xFF
-                                    )
-                                )
-                            )
-                        );
-            }
-            else if ( op == BAM_CINS ) {
-                vector< pair< char, char > > data;
+                for ( int j = 0; j < nop; ++j, ++idx ) {
+                    pos_t pos( ++col, op_t( op ) );
 
-                for ( int j = 0; j < nop; ++j, ++idx )
-                    data.push_back(
+                    pos.push_back(
                         make_pair(
                             bam1_seqi( bam1_seq( bam ), idx ),
                             has_quals ? bam1_qual( bam )[ idx ] : 0xFF
                             )
                         );
 
-                push_back(
-                    pos_t(
-                        col,
-                        op_t( op ),
-                        data
-                       )
-                    );
+                    push_back( pos );
+                }
+            }
+            else if ( op == BAM_CINS ) {
+                pos_t pos( col, op_t( op ) );
+
+                for ( int j = 0; j < nop; ++j, ++idx )
+                    pos.push_back(
+                        make_pair(
+                            bam1_seqi( bam1_seq( bam ), idx ),
+                            has_quals ? bam1_qual( bam )[ idx ] : 0xFF
+                            )
+                        );
+
+                push_back( pos );
             }
             else {
                 cerr << "unhandled CIGAR operation encountered" << endl;
@@ -283,7 +281,7 @@ namespace aligned
 
             // I want to use get_seq and get_qual here,
             // but I can't because of the seq is bit-packed
-            for ( pit = it->data.begin(); pit != it->data.end(); ++pit ) {
+            for ( pit = it->begin(); pit != it->end(); ++pit ) {
                 bam1_seq_seti( bam1_seq( bam ), seq_idx, pit->first );
                 bam1_qual( bam )[ seq_idx++ ] = pit->second;
             }
