@@ -12,7 +12,10 @@ set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX} CACHE INTERNAL "Installation prefix" 
 set(CMAKE_BUILD_TYPE DEBUG)
 # set(CMAKE_BUILD_TYPE RELEASE)
 
-set(COMMON_CXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
+set(
+    COMMON_CXX_FLAGS
+    "-Wall -Werror -Wno-unknown-pragmas -fstack-protector-all -fpie"
+    )
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g -pg ${COMMON_CXX_FLAGS}")
 set(CMAKE_C_FLAGS_DEBUG "-O3 -g -pg -Wall")
