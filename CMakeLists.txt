@@ -67,7 +67,7 @@ target_link_libraries(merger bam pthread m z)
 # do not remove -Wall and -Werror: please fix the errors instead of being lazy
 set_property(
     TARGET merger
-    APPEND PROPERTY INCLUDE_DIRECTORIES src/merger
+    APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src/merger
     )
 
 add_executable(
@@ -85,7 +85,7 @@ target_link_libraries(puncher bam pthread m z)
 
 set_property(
     TARGET puncher
-    APPEND PROPERTY INCLUDE_DIRECTORIES src/puncher
+    APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src/puncher
     )
 
 # add_executable(
@@ -102,7 +102,7 @@ set_property(
 #
 # set_property(
 #     TARGET sampler
-#     APPEND PROPERTY INCLUDE_DIRECTORIES src/sampler
+#     APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src/sampler
 #     )
 
 add_executable(
@@ -120,12 +120,12 @@ target_link_libraries(variants bam pthread m z)
 
 set_property(
     TARGET variants
-    APPEND PROPERTY INCLUDE_DIRECTORIES src/variants
+    APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src/variants
     )
 
 set_property(
     TARGET merger puncher variants # sampler variants
-    APPEND PROPERTY INCLUDE_DIRECTORIES external/samtools src
+    APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/external/samtools ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
 add_executable(
@@ -138,7 +138,7 @@ target_link_libraries(binmix m)
 
 set_property(
     TARGET binmix
-    APPEND PROPERTY INCLUDE_DIRECTORIES src
+    APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
 install(
